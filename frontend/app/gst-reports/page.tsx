@@ -1,16 +1,22 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { ProtectedLayout } from '@/components/protected-layout'
-import { useInvoices } from '@/context/invoice-context'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { downloadFile, getGstReport } from '@/lib/api'
+import type { Invoice } from '@/lib/types'
 
 export default function GSTReportsPage() {
-  const { invoices } = useInvoices()
   const [selectedMonth, setSelectedMonth] = useState(
     new Date().toISOString().slice(0, 7)
   )
+  const [monthlyInvoices, setMonthlyInvoices] = useState<Invoice[]>([])
+  const [gstBreakdown, setGstBreakdown] = useState<Array<{ rate: number; amount: number; invoiceCount: number }>>([])
+  const [totalGST, setTotalGST] = useState(0)
+  const [totalTaxableValue, setTotalTaxableValue] = useState(0)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
 
   // Generate month options
   const monthOptions = useMemo(() => {
@@ -25,32 +31,47 @@ export default function GSTReportsPage() {
     return months
   }, [])
 
-  // Filter invoices by month
-  const monthlyInvoices = useMemo(() => {
-    return invoices.filter((inv) => inv.invoiceDate.startsWith(selectedMonth))
-  }, [invoices, selectedMonth])
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true)
+      setError('')
 
-  // Calculate GST breakdown
-  const gstBreakdown = useMemo(() => {
-    const breakdown: Record<number, { rate: number; amount: number; invoiceCount: number }> = {}
+      try {
+        const report = await getGstReport(selectedMonth)
+        setMonthlyInvoices(report.invoices)
+        setGstBreakdown(report.gstBreakdown)
+        setTotalGST(report.totalGST)
+        setTotalTaxableValue(report.totalTaxableValue)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to load GST report')
+      } finally {
+        setLoading(false)
+      }
+    }
 
-    monthlyInvoices.forEach((inv) => {
-      inv.items.forEach((item) => {
-        if (!breakdown[item.gstRate]) {
-          breakdown[item.gstRate] = { rate: item.gstRate, amount: 0, invoiceCount: 0 }
-        }
-        const itemGST = (item.total * item.gstRate) / 100
-        breakdown[item.gstRate].amount += itemGST
-        breakdown[item.gstRate].invoiceCount++
-      })
-    })
+    void load()
+  }, [selectedMonth])
 
-    return Object.values(breakdown).sort((a, b) => b.rate - a.rate)
-  }, [monthlyInvoices])
-
-  const totalGST = gstBreakdown.reduce((sum, item) => sum + item.amount, 0)
-  const totalAmount = monthlyInvoices.reduce((sum, inv) => sum + inv.totalAmount, 0)
-  const totalTaxableValue = monthlyInvoices.reduce((sum, inv) => sum + (inv.totalAmount - inv.gstAmount), 0)
+  const handleExport = async (type: 'pdf' | 'excel') => {
+    setError('')
+    try {
+      const response = await downloadFile(`/gst-reports/${selectedMonth}/export/${type}`)
+      if (!response.ok) {
+        throw new Error('Export failed')
+      }
+      const blob = await response.blob()
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `gst-report-${selectedMonth}.${type === 'excel' ? 'csv' : 'pdf'}`
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to export report')
+    }
+  }
 
   const monthLabel = new Date(`${selectedMonth}-01`).toLocaleDateString('en-US', {
     month: 'long',
@@ -65,6 +86,16 @@ export default function GSTReportsPage() {
           <h1 className="text-3xl font-bold text-foreground mb-2">GST Reports</h1>
           <p className="text-muted-foreground">Generate and track your GST compliance</p>
         </div>
+
+        {error && (
+          <Card className="p-4 mb-6 border-destructive/40 bg-destructive/10 text-destructive">
+            {error}
+          </Card>
+        )}
+
+        {loading && (
+          <Card className="p-4 mb-6 text-muted-foreground">Loading GST report...</Card>
+        )}
 
         {/* Month Selector */}
         <Card className="p-6 mb-8">
@@ -199,8 +230,8 @@ export default function GSTReportsPage() {
 
         {/* Export Section */}
         <div className="mt-8 flex gap-4">
-          <Button>Download GST Report (PDF)</Button>
-          <Button variant="outline">Export to Excel</Button>
+          <Button onClick={() => void handleExport('pdf')}>Download GST Report (PDF)</Button>
+          <Button variant="outline" onClick={() => void handleExport('excel')}>Export to Excel</Button>
           <Button variant="outline">Print Report</Button>
         </div>
       </div>

@@ -1,36 +1,17 @@
 'use client'
 
 import React, { createContext, useContext, useState, useEffect } from 'react'
-
-export interface InvoiceItem {
-  description: string
-  quantity: number
-  unitPrice: number
-  total: number
-  gstRate: number
-}
-
-export interface Invoice {
-  id: string
-  fileName: string
-  vendorName: string
-  vendorGSTIN: string
-  invoiceNumber: string
-  invoiceDate: string
-  dueDate: string
-  totalAmount: number
-  gstAmount: number
-  items: InvoiceItem[]
-  notes: string
-  uploadedAt: string
-  status: 'draft' | 'confirmed' | 'paid'
-}
+import { createInvoice, listInvoices, patchInvoice, removeInvoice } from '@/lib/api'
+import type { Invoice, InvoiceInput } from '@/lib/types'
+import { useAuth } from '@/context/auth-context'
 
 interface InvoiceContextType {
   invoices: Invoice[]
-  addInvoice: (invoice: Omit<Invoice, 'id' | 'uploadedAt'>) => void
-  updateInvoice: (id: string, invoice: Partial<Invoice>) => void
-  deleteInvoice: (id: string) => void
+  loading: boolean
+  refreshInvoices: () => Promise<void>
+  addInvoice: (invoice: InvoiceInput) => Promise<Invoice>
+  updateInvoice: (id: string, invoice: Partial<Invoice>) => Promise<Invoice>
+  deleteInvoice: (id: string) => Promise<void>
   getInvoiceById: (id: string) => Invoice | undefined
 }
 
@@ -38,42 +19,44 @@ const InvoiceContext = createContext<InvoiceContextType | undefined>(undefined)
 
 export function InvoiceProvider({ children }: { children: React.ReactNode }) {
   const [invoices, setInvoices] = useState<Invoice[]>([])
+  const [loading, setLoading] = useState(true)
+  const { isAuthenticated } = useAuth()
 
-  // Load invoices from localStorage on mount
-  useEffect(() => {
-    const storedInvoices = localStorage.getItem('invoice_snap_invoices')
-    if (storedInvoices) {
-      try {
-        setInvoices(JSON.parse(storedInvoices))
-      } catch {
-        console.error('Failed to parse stored invoices')
-      }
+  const refreshInvoices = async () => {
+    try {
+      const { invoices: rows } = await listInvoices()
+      setInvoices(rows)
+    } catch {
+      setInvoices([])
+    } finally {
+      setLoading(false)
     }
-  }, [])
-
-  // Save invoices to localStorage whenever they change
-  useEffect(() => {
-    localStorage.setItem('invoice_snap_invoices', JSON.stringify(invoices))
-  }, [invoices])
-
-  const addInvoice = (invoice: Omit<Invoice, 'id' | 'uploadedAt'>) => {
-    const newInvoice: Invoice = {
-      ...invoice,
-      id: Math.random().toString(36).substr(2, 9),
-      uploadedAt: new Date().toISOString(),
-    }
-    setInvoices((prev) => [newInvoice, ...prev])
   }
 
-  const updateInvoice = (id: string, updates: Partial<Invoice>) => {
-    setInvoices((prev) =>
-      prev.map((invoice) =>
-        invoice.id === id ? { ...invoice, ...updates } : invoice
-      )
-    )
+  useEffect(() => {
+    if (isAuthenticated) {
+      void refreshInvoices()
+      return
+    }
+
+    setInvoices([])
+    setLoading(false)
+  }, [isAuthenticated])
+
+  const addInvoice = async (invoice: InvoiceInput) => {
+    const { invoice: created } = await createInvoice(invoice)
+    setInvoices((prev) => [created, ...prev])
+    return created
   }
 
-  const deleteInvoice = (id: string) => {
+  const updateInvoice = async (id: string, updates: Partial<Invoice>) => {
+    const { invoice: updated } = await patchInvoice(id, updates)
+    setInvoices((prev) => prev.map((invoice) => (invoice.id === id ? updated : invoice)))
+    return updated
+  }
+
+  const deleteInvoice = async (id: string) => {
+    await removeInvoice(id)
     setInvoices((prev) => prev.filter((invoice) => invoice.id !== id))
   }
 
@@ -85,6 +68,8 @@ export function InvoiceProvider({ children }: { children: React.ReactNode }) {
     <InvoiceContext.Provider
       value={{
         invoices,
+        loading,
+        refreshInvoices,
         addInvoice,
         updateInvoice,
         deleteInvoice,

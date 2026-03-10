@@ -7,12 +7,15 @@ import { useRouter } from 'next/navigation'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { extractInvoice } from '@/lib/api'
 
 export default function UploadPage() {
   const [dragActive, setDragActive] = useState(false)
   const [fileName, setFileName] = useState('')
   const [step, setStep] = useState<'upload' | 'extract'>('upload')
   const [extracting, setExtracting] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState('')
   const [formData, setFormData] = useState({
     vendorName: '',
     vendorGSTIN: '',
@@ -52,31 +55,32 @@ export default function UploadPage() {
   }
 
   const processFile = (file: File) => {
+    setError('')
     setFileName(file.name)
-    // Simulate AI extraction after file selection
-    simulateExtraction()
+    void simulateExtraction(file)
   }
 
-  const simulateExtraction = async () => {
+  const simulateExtraction = async (file: File) => {
     setExtracting(true)
     setStep('extract')
 
-    // Simulate API call to AI service
-    await new Promise((resolve) => setTimeout(resolve, 2000))
-
-    // Populate form with simulated extracted data
-    setFormData({
-      vendorName: 'ABC Enterprises Pvt Ltd',
-      vendorGSTIN: '18AABCT1234H1Z0',
-      invoiceNumber: 'INV-2024-001',
-      invoiceDate: new Date().toISOString().split('T')[0],
-      dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      totalAmount: 15000,
-      gstAmount: 2700,
-      notes: 'Services rendered for Q1 2024',
-    })
-
-    setExtracting(false)
+    try {
+      const { extracted } = await extractInvoice(file)
+      setFormData({
+        vendorName: extracted.vendorName,
+        vendorGSTIN: extracted.vendorGSTIN,
+        invoiceNumber: extracted.invoiceNumber,
+        invoiceDate: extracted.invoiceDate,
+        dueDate: extracted.dueDate,
+        totalAmount: extracted.totalAmount,
+        gstAmount: extracted.gstAmount,
+        notes: extracted.notes,
+      })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to extract invoice data')
+    } finally {
+      setExtracting(false)
+    }
   }
 
   const handleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -87,7 +91,7 @@ export default function UploadPage() {
     }))
   }
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (
       !formData.vendorName ||
       !formData.invoiceNumber ||
@@ -98,29 +102,38 @@ export default function UploadPage() {
       return
     }
 
-    addInvoice({
-      fileName,
-      vendorName: formData.vendorName,
-      vendorGSTIN: formData.vendorGSTIN,
-      invoiceNumber: formData.invoiceNumber,
-      invoiceDate: formData.invoiceDate,
-      dueDate: formData.dueDate,
-      totalAmount: formData.totalAmount,
-      gstAmount: formData.gstAmount,
-      items: [
-        {
-          description: 'Invoice items',
-          quantity: 1,
-          unitPrice: formData.totalAmount - formData.gstAmount,
-          total: formData.totalAmount - formData.gstAmount,
-          gstRate: 18,
-        },
-      ],
-      notes: formData.notes,
-      status: 'draft',
-    })
+    setSubmitting(true)
+    setError('')
 
-    router.push('/invoices')
+    try {
+      await addInvoice({
+        fileName,
+        vendorName: formData.vendorName,
+        vendorGSTIN: formData.vendorGSTIN,
+        invoiceNumber: formData.invoiceNumber,
+        invoiceDate: formData.invoiceDate,
+        dueDate: formData.dueDate,
+        totalAmount: formData.totalAmount,
+        gstAmount: formData.gstAmount,
+        items: [
+          {
+            description: 'Invoice items',
+            quantity: 1,
+            unitPrice: formData.totalAmount - formData.gstAmount,
+            total: formData.totalAmount - formData.gstAmount,
+            gstRate: 18,
+          },
+        ],
+        notes: formData.notes,
+        status: 'draft',
+      })
+
+      router.push('/invoices')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save invoice')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
@@ -188,6 +201,12 @@ export default function UploadPage() {
               </div>
             </Card>
 
+            {error && (
+              <Card className="p-4 border-destructive/40 bg-destructive/10 text-destructive">
+                {error}
+              </Card>
+            )}
+
             {/* Extracted Data Form */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {[
@@ -252,8 +271,8 @@ export default function UploadPage() {
               >
                 Upload Different File
               </Button>
-              <Button onClick={handleSubmit} disabled={extracting} className="ml-auto">
-                Save Invoice
+              <Button onClick={() => void handleSubmit()} disabled={extracting || submitting} className="ml-auto">
+                {submitting ? 'Saving...' : 'Save Invoice'}
               </Button>
             </div>
           </div>

@@ -1,9 +1,14 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useEffect, useState } from 'react'
 import { ProtectedLayout } from '@/components/protected-layout'
-import { useInvoices } from '@/context/invoice-context'
 import { Card } from '@/components/ui/card'
+import {
+  getAnalyticsStatusDistribution,
+  getAnalyticsSummary,
+  getAnalyticsTopVendors,
+  getAnalyticsTrends,
+} from '@/lib/api'
 import {
   LineChart,
   Line,
@@ -21,71 +26,53 @@ import {
 } from 'recharts'
 
 export default function AnalyticsPage() {
-  const { invoices } = useInvoices()
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [monthlyData, setMonthlyData] = useState<Array<{ month: string; amount: number; gst: number; count: number }>>([])
+  const [statusDistribution, setStatusDistribution] = useState<Array<{ name: string; value: number }>>([])
+  const [topVendors, setTopVendors] = useState<Array<{ name: string; amount: number }>>([])
+  const [stats, setStats] = useState({
+    totalAmount: 0,
+    totalGST: 0,
+    avgAmount: 0,
+    avgGST: 0,
+    totalInvoices: 0,
+  })
 
-  // Calculate monthly data
-  const monthlyData = useMemo(() => {
-    const data: Record<string, { month: string; amount: number; gst: number; count: number }> = {}
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true)
+      setError('')
 
-    invoices.forEach((inv) => {
-      const date = new Date(inv.invoiceDate)
-      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
-      const monthLabel = date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
+      try {
+        const [summary, trends, distribution, vendors] = await Promise.all([
+          getAnalyticsSummary(),
+          getAnalyticsTrends(),
+          getAnalyticsStatusDistribution(),
+          getAnalyticsTopVendors(),
+        ])
 
-      if (!data[monthKey]) {
-        data[monthKey] = { month: monthLabel, amount: 0, gst: 0, count: 0 }
+        setStats({
+          totalAmount: summary.summary.totalAmount,
+          totalGST: summary.summary.totalGST,
+          avgAmount: summary.summary.averageAmount,
+          avgGST: summary.summary.averageGST,
+          totalInvoices: summary.summary.totalInvoices,
+        })
+        setMonthlyData(trends.trends)
+        setStatusDistribution(distribution.distribution)
+        setTopVendors(vendors.vendors)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to load analytics')
+      } finally {
+        setLoading(false)
       }
-
-      data[monthKey].amount += inv.totalAmount
-      data[monthKey].gst += inv.gstAmount
-      data[monthKey].count += 1
-    })
-
-    return Object.values(data).slice(-12)
-  }, [invoices])
-
-  // Calculate status distribution
-  const statusDistribution = useMemo(() => {
-    const distribution = {
-      draft: 0,
-      confirmed: 0,
-      paid: 0,
     }
 
-    invoices.forEach((inv) => {
-      distribution[inv.status]++
-    })
-
-    return [
-      { name: 'Draft', value: distribution.draft },
-      { name: 'Confirmed', value: distribution.confirmed },
-      { name: 'Paid', value: distribution.paid },
-    ]
-  }, [invoices])
-
-  // Calculate top vendors
-  const topVendors = useMemo(() => {
-    const vendorMap: Record<string, number> = {}
-
-    invoices.forEach((inv) => {
-      const vendor = inv.vendorName || 'Unknown'
-      vendorMap[vendor] = (vendorMap[vendor] || 0) + inv.totalAmount
-    })
-
-    return Object.entries(vendorMap)
-      .sort(([, a], [, b]) => b - a)
-      .slice(0, 5)
-      .map(([name, amount]) => ({ name, amount }))
-  }, [invoices])
+    void load()
+  }, [])
 
   const COLORS = ['#3b82f6', '#f59e0b', '#ef4444']
-
-  const stats = {
-    totalAmount: invoices.reduce((sum, inv) => sum + inv.totalAmount, 0),
-    totalGST: invoices.reduce((sum, inv) => sum + inv.gstAmount, 0),
-    avgAmount: invoices.length > 0 ? invoices.reduce((sum, inv) => sum + inv.totalAmount, 0) / invoices.length : 0,
-    avgGST: invoices.length > 0 ? invoices.reduce((sum, inv) => sum + inv.gstAmount, 0) / invoices.length : 0,
-  }
 
   return (
     <ProtectedLayout>
@@ -95,6 +82,16 @@ export default function AnalyticsPage() {
           <h1 className="text-3xl font-bold text-foreground mb-2">Analytics</h1>
           <p className="text-muted-foreground">Track your invoice trends and GST data</p>
         </div>
+
+        {error && (
+          <Card className="p-4 mb-6 border-destructive/40 bg-destructive/10 text-destructive">
+            {error}
+          </Card>
+        )}
+
+        {loading && (
+          <Card className="p-4 mb-6 text-muted-foreground">Loading analytics...</Card>
+        )}
 
         {/* Key Metrics */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
@@ -155,7 +152,7 @@ export default function AnalyticsPage() {
           {/* Status Distribution */}
           <Card className="p-6">
             <h3 className="text-lg font-semibold mb-4">Status Distribution</h3>
-            {invoices.length > 0 ? (
+            {stats.totalInvoices > 0 ? (
               <ResponsiveContainer width="100%" height={300}>
                 <PieChart>
                   <Pie

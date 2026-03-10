@@ -1,20 +1,16 @@
 'use client'
 
 import React, { createContext, useContext, useEffect, useState } from 'react'
-
-export interface User {
-  id: string
-  email: string
-  name: string
-  company?: string
-}
+import { clearToken, login as loginApi, logout as logoutApi, me, setToken, signup as signupApi } from '@/lib/api'
+import type { User } from '@/lib/types'
 
 interface AuthContextType {
   user: User | null
   loading: boolean
   login: (email: string, password: string) => Promise<void>
   signup: (email: string, password: string, name: string) => Promise<void>
-  logout: () => void
+  logout: () => Promise<void>
+  setUser: React.Dispatch<React.SetStateAction<User | null>>
   isAuthenticated: boolean
 }
 
@@ -24,62 +20,42 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
 
-  // Simulate checking if user is logged in on mount
   useEffect(() => {
-    const storedUser = localStorage.getItem('invoice_snap_user')
-    if (storedUser) {
+    const init = async () => {
       try {
-        setUser(JSON.parse(storedUser))
+        const { user: profile } = await me()
+        setUser(profile)
       } catch {
-        localStorage.removeItem('invoice_snap_user')
+        clearToken()
+        setUser(null)
+      } finally {
+        setLoading(false)
       }
     }
-    setLoading(false)
+
+    void init()
   }, [])
 
   const login = async (email: string, password: string) => {
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 500))
-
-    if (password.length < 6) {
-      throw new Error('Password must be at least 6 characters')
-    }
-
-    const newUser: User = {
-      id: Math.random().toString(36).substr(2, 9),
-      email,
-      name: email.split('@')[0],
-    }
-
-    setUser(newUser)
-    localStorage.setItem('invoice_snap_user', JSON.stringify(newUser))
+    const response = await loginApi(email, password)
+    setToken(response.token)
+    setUser(response.user)
   }
 
   const signup = async (email: string, password: string, name: string) => {
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 500))
-
-    if (password.length < 6) {
-      throw new Error('Password must be at least 6 characters')
-    }
-
-    if (!email || !name) {
-      throw new Error('Email and name are required')
-    }
-
-    const newUser: User = {
-      id: Math.random().toString(36).substr(2, 9),
-      email,
-      name,
-    }
-
-    setUser(newUser)
-    localStorage.setItem('invoice_snap_user', JSON.stringify(newUser))
+    const response = await signupApi(email, password, name)
+    setToken(response.token)
+    setUser(response.user)
   }
 
-  const logout = () => {
+  const logout = async () => {
+    try {
+      await logoutApi()
+    } catch {
+      // Clear local auth state even if backend logout request fails.
+    }
+    clearToken()
     setUser(null)
-    localStorage.removeItem('invoice_snap_user')
   }
 
   return (
@@ -90,6 +66,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         login,
         signup,
         logout,
+        setUser,
         isAuthenticated: !!user,
       }}
     >

@@ -1,15 +1,16 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { ProtectedLayout } from '@/components/protected-layout'
 import { useAuth } from '@/context/auth-context'
 import { useRouter } from 'next/navigation'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { logoutAll, updatePassword, updateSettings } from '@/lib/api'
 
 export default function SettingsPage() {
-  const { user, logout } = useAuth()
+  const { user, logout, setUser } = useAuth()
   const router = useRouter()
   const [activeTab, setActiveTab] = useState('profile')
   const [formData, setFormData] = useState({
@@ -19,20 +20,83 @@ export default function SettingsPage() {
   })
   const [showPassword, setShowPassword] = useState(false)
   const [saveSuccess, setSaveSuccess] = useState(false)
+  const [error, setError] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [securityData, setSecurityData] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: '',
+  })
+
+  useEffect(() => {
+    setFormData({
+      name: user?.name || '',
+      email: user?.email || '',
+      company: user?.company || '',
+    })
+  }, [user])
 
   const handleFormChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
     setFormData((prev) => ({ ...prev, [name]: value }))
   }
 
-  const handleSaveProfile = () => {
-    setSaveSuccess(true)
-    setTimeout(() => setSaveSuccess(false), 3000)
+  const handleSaveProfile = async () => {
+    setError('')
+    setSaving(true)
+    try {
+      const { user: updated } = await updateSettings(formData.name, formData.company)
+      setUser(updated)
+      setSaveSuccess(true)
+      setTimeout(() => setSaveSuccess(false), 3000)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save profile')
+    } finally {
+      setSaving(false)
+    }
   }
 
-  const handleLogout = () => {
-    logout()
+  const handleSecurityChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target
+    setSecurityData((prev) => ({ ...prev, [name]: value }))
+  }
+
+  const handlePasswordUpdate = async () => {
+    setError('')
+    if (securityData.newPassword !== securityData.confirmPassword) {
+      setError('New password and confirmation do not match')
+      return
+    }
+
+    setSaving(true)
+    try {
+      await updatePassword(securityData.currentPassword, securityData.newPassword)
+      setSaveSuccess(true)
+      setSecurityData({ currentPassword: '', newPassword: '', confirmPassword: '' })
+      setTimeout(() => setSaveSuccess(false), 3000)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update password')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleLogout = async () => {
+    await logout()
     router.push('/login')
+  }
+
+  const handleLogoutEverywhere = async () => {
+    setError('')
+    setSaving(true)
+    try {
+      await logoutAll()
+      await handleLogout()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to sign out everywhere')
+    } finally {
+      setSaving(false)
+    }
   }
 
   const tabs = [
@@ -50,6 +114,12 @@ export default function SettingsPage() {
           <h1 className="text-3xl font-bold text-foreground mb-2">Settings</h1>
           <p className="text-muted-foreground">Manage your account and preferences</p>
         </div>
+
+        {error && (
+          <Card className="p-4 mb-6 border-destructive/40 bg-destructive/10 text-destructive">
+            {error}
+          </Card>
+        )}
 
         {/* Tabs */}
         <div className="flex gap-2 mb-8 border-b border-border">
@@ -114,7 +184,9 @@ export default function SettingsPage() {
                 )}
 
                 <div className="flex gap-2">
-                  <Button onClick={handleSaveProfile}>Save Changes</Button>
+                  <Button onClick={() => void handleSaveProfile()} disabled={saving}>
+                    {saving ? 'Saving...' : 'Save Changes'}
+                  </Button>
                   <Button variant="outline">Cancel</Button>
                 </div>
               </div>
@@ -146,6 +218,9 @@ export default function SettingsPage() {
                   <label className="block text-sm font-medium mb-2">Current Password</label>
                   <Input
                     type={showPassword ? 'text' : 'password'}
+                    name="currentPassword"
+                    value={securityData.currentPassword}
+                    onChange={handleSecurityChange}
                     placeholder="••••••••"
                   />
                 </div>
@@ -154,6 +229,9 @@ export default function SettingsPage() {
                   <label className="block text-sm font-medium mb-2">New Password</label>
                   <Input
                     type={showPassword ? 'text' : 'password'}
+                    name="newPassword"
+                    value={securityData.newPassword}
+                    onChange={handleSecurityChange}
                     placeholder="••••••••"
                   />
                 </div>
@@ -162,6 +240,9 @@ export default function SettingsPage() {
                   <label className="block text-sm font-medium mb-2">Confirm Password</label>
                   <Input
                     type={showPassword ? 'text' : 'password'}
+                    name="confirmPassword"
+                    value={securityData.confirmPassword}
+                    onChange={handleSecurityChange}
                     placeholder="••••••••"
                   />
                 </div>
@@ -176,7 +257,9 @@ export default function SettingsPage() {
                   <span className="text-sm">Show password</span>
                 </label>
 
-                <Button>Update Password</Button>
+                <Button onClick={() => void handlePasswordUpdate()} disabled={saving}>
+                  {saving ? 'Updating...' : 'Update Password'}
+                </Button>
               </div>
             </Card>
 
@@ -205,7 +288,7 @@ export default function SettingsPage() {
                   <p className="text-sm text-muted-foreground mb-3">
                     Sign out from all devices and end your session
                   </p>
-                  <Button variant="outline" onClick={handleLogout} className="text-destructive">
+                  <Button variant="outline" onClick={() => void handleLogoutEverywhere()} className="text-destructive" disabled={saving}>
                     Sign Out Everywhere
                   </Button>
                 </div>

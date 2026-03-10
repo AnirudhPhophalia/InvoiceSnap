@@ -21,8 +21,8 @@ export function Sidebar() {
   const { user, logout } = useAuth()
   const [isCollapsed, setIsCollapsed] = useState(false)
 
-  const handleLogout = () => {
-    logout()
+  const handleLogout = async () => {
+    await logout()
     router.push('/login')
   }
 
@@ -81,7 +81,7 @@ export function Sidebar() {
         <Button
           variant="outline"
           size="sm"
-          onClick={handleLogout}
+          onClick={() => void handleLogout()}
           className="w-full"
         >
           {isCollapsed ? '🚪' : 'Sign Out'}

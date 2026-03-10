@@ -9,9 +9,19 @@ import { Input } from '@/components/ui/input'
 import Link from 'next/link'
 
 export default function InvoicesPage() {
-  const { invoices, deleteInvoice, updateInvoice } = useInvoices()
+  const { invoices, deleteInvoice, loading } = useInvoices()
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState<'all' | 'draft' | 'confirmed' | 'paid'>('all')
+  const [error, setError] = useState('')
+
+  const handleDelete = async (id: string) => {
+    setError('')
+    try {
+      await deleteInvoice(id)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete invoice')
+    }
+  }
 
   const filteredInvoices = useMemo(() => {
     return invoices.filter((invoice) => {
@@ -88,7 +98,15 @@ export default function InvoicesPage() {
         </Card>
 
         {/* Invoices List */}
-        {filteredInvoices.length === 0 ? (
+        {error && (
+          <Card className="p-4 mb-4 border-destructive/40 bg-destructive/10 text-destructive">
+            {error}
+          </Card>
+        )}
+
+        {loading ? (
+          <Card className="p-12 text-center text-muted-foreground">Loading invoices...</Card>
+        ) : filteredInvoices.length === 0 ? (
           <Card className="p-12 text-center">
             <p className="text-muted-foreground mb-4">No invoices found</p>
             <Link href="/upload">
@@ -146,7 +164,7 @@ export default function InvoicesPage() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => deleteInvoice(invoice.id)}
+                      onClick={() => void handleDelete(invoice.id)}
                       className="text-destructive hover:bg-destructive/10"
                     >
                       Delete

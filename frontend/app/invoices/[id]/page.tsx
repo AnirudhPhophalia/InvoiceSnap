@@ -3,17 +3,25 @@
 import { useState } from 'react'
 import { ProtectedLayout } from '@/components/protected-layout'
 import { useInvoices } from '@/context/invoice-context'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams } from 'next/navigation'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
+import { downloadFile } from '@/lib/api'
 
 export default function InvoiceDetailPage() {
   const { id } = useParams()
-  const router = useRouter()
-  const { getInvoiceById, updateInvoice } = useInvoices()
+  const { getInvoiceById, updateInvoice, loading } = useInvoices()
   const invoice = getInvoiceById(id as string)
-  const [isEditing, setIsEditing] = useState(false)
+  const [error, setError] = useState('')
+
+  if (loading) {
+    return (
+      <ProtectedLayout>
+        <div className="p-8 text-center text-muted-foreground">Loading invoice...</div>
+      </ProtectedLayout>
+    )
+  }
 
   if (!invoice) {
     return (
@@ -28,8 +36,37 @@ export default function InvoiceDetailPage() {
     )
   }
 
-  const handleStatusChange = (newStatus: 'draft' | 'confirmed' | 'paid') => {
-    updateInvoice(invoice.id, { status: newStatus })
+  const handleStatusChange = async (newStatus: 'draft' | 'confirmed' | 'paid') => {
+    setError('')
+    try {
+      await updateInvoice(invoice.id, { status: newStatus })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update status')
+    }
+  }
+
+  const handleDownload = async (path: string, fallbackName: string) => {
+    setError('')
+    try {
+      const response = await downloadFile(path)
+      if (!response.ok) {
+        throw new Error('Download failed')
+      }
+
+      const blob = await response.blob()
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      const header = response.headers.get('Content-Disposition')
+      const fileName = header?.split('filename=')[1]?.replace(/"/g, '') || fallbackName
+      link.href = url
+      link.download = fileName
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to download file')
+    }
   }
 
   return (
@@ -47,6 +84,12 @@ export default function InvoiceDetailPage() {
         </div>
 
         {/* Main Content */}
+        {error && (
+          <Card className="mb-6 p-4 border-destructive/40 bg-destructive/10 text-destructive">
+            {error}
+          </Card>
+        )}
+
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Invoice Card */}
           <Card className="lg:col-span-2 p-8">
@@ -143,7 +186,7 @@ export default function InvoiceDetailPage() {
                     key={status}
                     variant={invoice.status === status ? 'default' : 'outline'}
                     className="w-full justify-start"
-                    onClick={() => handleStatusChange(status)}
+                    onClick={() => void handleStatusChange(status)}
                   >
                     {status === 'draft' && '📝'}
                     {status === 'confirmed' && '✓'}
@@ -158,10 +201,18 @@ export default function InvoiceDetailPage() {
             <Card className="p-6">
               <h3 className="font-semibold mb-4">Export</h3>
               <div className="space-y-2">
-                <Button variant="outline" className="w-full justify-start">
+                <Button
+                  variant="outline"
+                  className="w-full justify-start"
+                  onClick={() => void handleDownload(`/invoices/${invoice.id}/export/pdf`, `invoice-${invoice.invoiceNumber}.pdf`)}
+                >
                   📥 Download PDF
                 </Button>
-                <Button variant="outline" className="w-full justify-start">
+                <Button
+                  variant="outline"
+                  className="w-full justify-start"
+                  onClick={() => void handleDownload(`/invoices/${invoice.id}/export/excel`, `invoice-${invoice.invoiceNumber}.csv`)}
+                >
                   📊 Export to Excel
                 </Button>
               </div>
