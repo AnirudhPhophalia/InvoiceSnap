@@ -1,6 +1,7 @@
 import type { NextFunction, Request, Response } from "express";
 import { verifyToken } from "../auth.js";
-import { readDb } from "../db.js";
+import { config } from "../config.js";
+import { usersCollection } from "../db.js";
 import type { UserRecord } from "../types.js";
 
 declare global {
@@ -13,18 +14,18 @@ declare global {
 
 export async function requireAuth(req: Request, res: Response, next: NextFunction): Promise<void> {
   const authHeader = req.headers.authorization;
+  const headerToken = authHeader?.startsWith("Bearer ") ? authHeader.slice("Bearer ".length).trim() : null;
+  const cookieToken = typeof req.cookies?.[config.authCookieName] === "string" ? req.cookies[config.authCookieName] : null;
+  const token = headerToken || cookieToken;
 
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+  if (!token) {
     res.status(401).json({ message: "Unauthorized" });
     return;
   }
 
-  const token = authHeader.slice("Bearer ".length).trim();
-
   try {
     const payload = verifyToken(token);
-    const db = await readDb();
-    const user = db.users.find((candidate) => candidate.id === payload.sub);
+    const user = await usersCollection().findOne({ id: payload.sub });
 
     if (!user) {
       res.status(401).json({ message: "Unauthorized" });

@@ -1,45 +1,27 @@
 import type { Invoice, InvoiceInput, InvoiceStatus, User } from "@/lib/types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:4000/api";
-const TOKEN_KEY = "invoice_snap_token";
-
-function getToken(): string | null {
-  if (typeof window === "undefined") {
-    return null;
-  }
-  return localStorage.getItem(TOKEN_KEY);
-}
 
 export function setToken(token: string): void {
-  if (typeof window === "undefined") {
-    return;
-  }
-  localStorage.setItem(TOKEN_KEY, token);
+  void token;
 }
 
 export function clearToken(): void {
-  if (typeof window === "undefined") {
-    return;
-  }
-  localStorage.removeItem(TOKEN_KEY);
+  // Auth is now managed via an HTTP-only cookie from the backend.
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const token = getToken();
   const headers = new Headers(init?.headers || {});
 
   if (!headers.has("Content-Type") && !(init?.body instanceof FormData)) {
     headers.set("Content-Type", "application/json");
   }
 
-  if (token) {
-    headers.set("Authorization", `Bearer ${token}`);
-  }
-
   const response = await fetch(`${API_BASE}${path}`, {
     ...init,
     headers,
     cache: "no-store",
+    credentials: "include",
   });
 
   if (!response.ok) {
@@ -180,14 +162,8 @@ export async function getGstReport(month: string) {
 }
 
 export function downloadFile(path: string): Promise<Response> {
-  const token = getToken();
-  const headers = new Headers();
-  if (token) {
-    headers.set("Authorization", `Bearer ${token}`);
-  }
-
   return fetch(`${API_BASE}${path}`, {
     method: "GET",
-    headers,
+    credentials: "include",
   });
 }

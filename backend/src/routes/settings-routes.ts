@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { readDb, writeDb } from "../db.js";
+import { usersCollection } from "../db.js";
 import { requireAuth } from "../middleware/auth-middleware.js";
 import { publicUser } from "../auth.js";
 
@@ -24,22 +24,27 @@ settingsRouter.patch("/", async (req, res) => {
     return;
   }
 
-  const db = await readDb();
-  const target = db.users.find((user) => user.id === req.user!.id);
+  const users = usersCollection();
+  const target = await users.findOne({ id: req.user!.id });
 
   if (!target) {
     res.status(404).json({ message: "User not found" });
     return;
   }
 
+  const updates: { name?: string; company?: string } = {};
   if (typeof parsed.data.name === "string") {
+    updates.name = parsed.data.name;
     target.name = parsed.data.name;
   }
   if (typeof parsed.data.company === "string") {
+    updates.company = parsed.data.company;
     target.company = parsed.data.company;
   }
 
-  await writeDb(db);
+  if (Object.keys(updates).length > 0) {
+    await users.updateOne({ id: target.id }, { $set: updates });
+  }
 
   res.json({ user: publicUser(target) });
 });

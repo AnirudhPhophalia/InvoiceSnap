@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { readDb } from "../db.js";
+import { invoicesCollection } from "../db.js";
 import { requireAuth } from "../middleware/auth-middleware.js";
 import { buildGstReport } from "../utils/analytics.js";
 
@@ -14,8 +14,7 @@ gstRouter.get("/:month", async (req, res) => {
     return;
   }
 
-  const db = await readDb();
-  const invoices = db.invoices.filter((invoice) => invoice.userId === req.user!.id);
+  const invoices = await invoicesCollection().find({ userId: req.user!.id }).toArray();
   const report = buildGstReport(invoices, month);
 
   res.json(report);
@@ -28,8 +27,7 @@ gstRouter.get("/:month/export/excel", async (req, res) => {
     return;
   }
 
-  const db = await readDb();
-  const invoices = db.invoices.filter((invoice) => invoice.userId === req.user!.id);
+  const invoices = await invoicesCollection().find({ userId: req.user!.id }).toArray();
   const report = buildGstReport(invoices, month);
 
   const rows = [
@@ -51,8 +49,7 @@ gstRouter.get("/:month/export/pdf", async (req, res) => {
     return;
   }
 
-  const db = await readDb();
-  const invoices = db.invoices.filter((invoice) => invoice.userId === req.user!.id);
+  const invoices = await invoicesCollection().find({ userId: req.user!.id }).toArray();
   const report = buildGstReport(invoices, month);
 
   const lines = [

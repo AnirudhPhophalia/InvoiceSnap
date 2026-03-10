@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { v4 as uuid } from "uuid";
-import { readDb, writeDb } from "../db.js";
+import { invoicesCollection } from "../db.js";
 import { requireAuth } from "../middleware/auth-middleware.js";
 import type { InvoiceRecord } from "../types.js";
 
@@ -34,18 +34,19 @@ export const invoiceRouter = Router();
 invoiceRouter.use(requireAuth);
 
 invoiceRouter.get("/", async (req, res) => {
-  const db = await readDb();
+  const invoicesStore = invoicesCollection();
   const status = typeof req.query.status === "string" ? req.query.status : undefined;
   const search = typeof req.query.search === "string" ? req.query.search.trim().toLowerCase() : "";
 
-  const invoices = db.invoices
-    .filter((invoice) => invoice.userId === req.user!.id)
-    .filter((invoice) => {
-      if (status && status !== "all") {
-        return invoice.status === status;
-      }
-      return true;
-    })
+  const baseQuery: Record<string, unknown> = { userId: req.user!.id };
+  if (status && status !== "all") {
+    baseQuery.status = status;
+  }
+
+  const invoices = (await invoicesStore
+    .find(baseQuery)
+    .sort({ uploadedAt: -1 })
+    .toArray())
     .filter((invoice) => {
       if (!search) {
         return true;
@@ -56,8 +57,7 @@ invoiceRouter.get("/", async (req, res) => {
         invoice.invoiceNumber.toLowerCase().includes(search) ||
         invoice.fileName.toLowerCase().includes(search)
       );
-    })
-    .sort((a, b) => b.uploadedAt.localeCompare(a.uploadedAt));
+    });
 
   res.json({ invoices });
 });
@@ -69,7 +69,7 @@ invoiceRouter.post("/", async (req, res) => {
     return;
   }
 
-  const db = await readDb();
+  const invoicesStore = invoicesCollection();
   const newInvoice: InvoiceRecord = {
     id: uuid(),
     userId: req.user!.id,
@@ -77,15 +77,13 @@ invoiceRouter.post("/", async (req, res) => {
     uploadedAt: new Date().toISOString(),
   };
 
-  db.invoices.push(newInvoice);
-  await writeDb(db);
+  await invoicesStore.insertOne(newInvoice);
 
   res.status(201).json({ invoice: newInvoice });
 });
 
 invoiceRouter.get("/:id", async (req, res) => {
-  const db = await readDb();
-  const invoice = db.invoices.find((candidate) => candidate.id === req.params.id && candidate.userId === req.user!.id);
+  const invoice = await invoicesCollection().findOne({ id: req.params.id, userId: req.user!.id });
 
   if (!invoice) {
     res.status(404).json({ message: "Invoice not found" });
@@ -102,8 +100,8 @@ invoiceRouter.patch("/:id", async (req, res) => {
     return;
   }
 
-  const db = await readDb();
-  const target = db.invoices.find((candidate) => candidate.id === req.params.id && candidate.userId === req.user!.id);
+  const invoicesStore = invoicesCollection();
+  const target = await invoicesStore.findOne({ id: req.params.id, userId: req.user!.id });
 
   if (!target) {
     res.status(404).json({ message: "Invoice not found" });
@@ -111,29 +109,24 @@ invoiceRouter.patch("/:id", async (req, res) => {
   }
 
   Object.assign(target, parsed.data);
-  await writeDb(db);
+  await invoicesStore.updateOne({ id: target.id, userId: req.user!.id }, { $set: parsed.data });
 
   res.json({ invoice: target });
 });
 
 invoiceRouter.delete("/:id", async (req, res) => {
-  const db = await readDb();
-  const index = db.invoices.findIndex((candidate) => candidate.id === req.params.id && candidate.userId === req.user!.id);
+  const result = await invoicesCollection().deleteOne({ id: req.params.id, userId: req.user!.id });
 
-  if (index < 0) {
+  if (result.deletedCount === 0) {
     res.status(404).json({ message: "Invoice not found" });
     return;
   }
-
-  db.invoices.splice(index, 1);
-  await writeDb(db);
 
   res.status(204).send();
 });
 
 invoiceRouter.get("/:id/export/pdf", async (req, res) => {
-  const db = await readDb();
-  const invoice = db.invoices.find((candidate) => candidate.id === req.params.id && candidate.userId === req.user!.id);
+  const invoice = await invoicesCollection().findOne({ id: req.params.id, userId: req.user!.id });
 
   if (!invoice) {
     res.status(404).json({ message: "Invoice not found" });
@@ -159,8 +152,7 @@ invoiceRouter.get("/:id/export/pdf", async (req, res) => {
 });
 
 invoiceRouter.get("/:id/export/excel", async (req, res) => {
-  const db = await readDb();
-  const invoice = db.invoices.find((candidate) => candidate.id === req.params.id && candidate.userId === req.user!.id);
+  const invoice = await invoicesCollection().findOne({ id: req.params.id, userId: req.user!.id });
 
   if (!invoice) {
     res.status(404).json({ message: "Invoice not found" });

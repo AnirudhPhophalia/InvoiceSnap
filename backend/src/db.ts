@@ -1,47 +1,31 @@
-import fs from "node:fs/promises";
-import path from "node:path";
+import { MongoClient } from "mongodb";
 import { config } from "./config.js";
-import type { Database } from "./types.js";
+import type { InvoiceRecord, UserRecord } from "./types.js";
 
-const initialDb: Database = {
-  users: [],
-  invoices: [],
-};
+let client: MongoClient | null = null;
 
-let writeQueue: Promise<void> = Promise.resolve();
-
-async function ensureDbFile(): Promise<void> {
-  const dir = path.dirname(config.dataFile);
-  await fs.mkdir(dir, { recursive: true });
-
-  try {
-    await fs.access(config.dataFile);
-  } catch {
-    await fs.writeFile(config.dataFile, JSON.stringify(initialDb, null, 2), "utf8");
+function getClient(): MongoClient {
+  if (!client) {
+    client = new MongoClient(config.mongoUri);
   }
+  return client;
 }
 
-export async function readDb(): Promise<Database> {
-  await ensureDbFile();
-  const raw = await fs.readFile(config.dataFile, "utf8");
+export async function connectDb(): Promise<void> {
+  const mongoClient = getClient();
+  await mongoClient.connect();
 
-  try {
-    const parsed = JSON.parse(raw) as Database;
-    return {
-      users: parsed.users || [],
-      invoices: parsed.invoices || [],
-    };
-  } catch {
-    return initialDb;
-  }
+  const db = mongoClient.db(config.mongoDbName);
+  await Promise.all([
+    db.collection<UserRecord>("users").createIndex({ email: 1 }, { unique: true }),
+    db.collection<InvoiceRecord>("invoices").createIndex({ userId: 1, uploadedAt: -1 }),
+  ]);
 }
 
-export async function writeDb(nextDb: Database): Promise<void> {
-  await ensureDbFile();
+export function usersCollection() {
+  return getClient().db(config.mongoDbName).collection<UserRecord>("users");
+}
 
-  writeQueue = writeQueue.then(async () => {
-    await fs.writeFile(config.dataFile, JSON.stringify(nextDb, null, 2), "utf8");
-  });
-
-  await writeQueue;
+export function invoicesCollection() {
+  return getClient().db(config.mongoDbName).collection<InvoiceRecord>("invoices");
 }

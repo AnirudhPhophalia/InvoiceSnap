@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { readDb } from "../db.js";
+import { invoicesCollection } from "../db.js";
 import { requireAuth } from "../middleware/auth-middleware.js";
 import {
   buildMonthlyTrends,
@@ -13,29 +13,25 @@ export const analyticsRouter = Router();
 analyticsRouter.use(requireAuth);
 
 analyticsRouter.get("/summary", async (req, res) => {
-  const db = await readDb();
-  const invoices = db.invoices.filter((invoice) => invoice.userId === req.user!.id);
+  const invoices = await invoicesCollection().find({ userId: req.user!.id }).toArray();
 
   res.json({ summary: buildSummary(invoices) });
 });
 
 analyticsRouter.get("/trends", async (req, res) => {
-  const db = await readDb();
-  const invoices = db.invoices.filter((invoice) => invoice.userId === req.user!.id);
+  const invoices = await invoicesCollection().find({ userId: req.user!.id }).toArray();
 
   res.json({ trends: buildMonthlyTrends(invoices) });
 });
 
 analyticsRouter.get("/status-distribution", async (req, res) => {
-  const db = await readDb();
-  const invoices = db.invoices.filter((invoice) => invoice.userId === req.user!.id);
+  const invoices = await invoicesCollection().find({ userId: req.user!.id }).toArray();
 
   res.json({ distribution: buildStatusDistribution(invoices) });
 });
 
 analyticsRouter.get("/top-vendors", async (req, res) => {
-  const db = await readDb();
-  const invoices = db.invoices.filter((invoice) => invoice.userId === req.user!.id);
+  const invoices = await invoicesCollection().find({ userId: req.user!.id }).toArray();
 
   res.json({ vendors: buildTopVendors(invoices) });
 });

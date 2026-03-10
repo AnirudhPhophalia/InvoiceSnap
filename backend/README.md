@@ -25,4 +25,4 @@ Backend runs on `http://localhost:4000` by default.
 - `http://localhost:4000/api`
 
 ## Persistence
-Data is stored in JSON at `backend/data/db.json`.
+Data is stored in MongoDB using the configured `MONGODB_URI` and `MONGODB_DB_NAME` values.

@@ -17,7 +17,7 @@ InvoiceSnap is a modern SaaS application that streamlines invoice management and
 - **Styling**: Tailwind CSS + shadcn/ui components
 - **Charts**: Recharts for data visualization
 - **State Management**: React Context API + Hooks
-- **Data Storage**: Browser localStorage (for demo)
+- **Data Storage**: Backend API with MongoDB persistence
 - **Design System**: Custom color tokens with glassmorphism effects
 
 ## Project Structure
@@ -137,11 +137,11 @@ The upload page simulates AI extraction by:
 2. Simulating API call to AI service (2-second delay)
 3. Pre-populating form with sample extracted data
 4. Allowing user to review and edit fields
-5. Saving invoice to local storage
+5. Saving invoice via backend API
 
 ### Data Management
 - **Context API**: Global state management for auth and invoices
-- **localStorage**: Persist data across sessions
+- **Backend API**: Data persisted in MongoDB via backend services
 - **Real-time Updates**: State updates immediately reflect across the app
 
 ### Analytics
@@ -200,7 +200,6 @@ const navItems = [
 
 ## Future Enhancements
 
-- Backend API integration with real database
 - Real AI-powered invoice extraction
 - OCR for image processing
 - Email notifications
@@ -238,6 +237,6 @@ For support or feature requests, please visit the Settings page or contact suppo
 ## Notes
 
 - This is a demo/prototype implementation
-- Data is stored in browser localStorage (not persistent across browsers)
+- Data is stored by the backend in MongoDB
 - AI extraction is simulated with sample data
-- For production, integrate with real backend and AI services
+- For production, integrate with real AI services
