@@ -8,6 +8,7 @@ export interface User {
 
 export interface InvoiceItem {
   description: string;
+  category?: ExpenseCategory;
   quantity: number;
   unitPrice: number;
   total: number;
@@ -15,6 +16,17 @@ export interface InvoiceItem {
 }
 
 export type InvoiceStatus = "draft" | "confirmed" | "paid";
+export type ExpenseCategory =
+  | "Software"
+  | "Travel"
+  | "Office"
+  | "Utilities"
+  | "Marketing"
+  | "Meals"
+  | "Professional Services"
+  | "Equipment"
+  | "Rent"
+  | "Other";
 
 export interface Invoice {
   id: string;
@@ -26,6 +38,8 @@ export interface Invoice {
   dueDate: string;
   totalAmount: number;
   gstAmount: number;
+  currencySymbol: string;
+  category: ExpenseCategory;
   items: InvoiceItem[];
   notes: string;
   uploadedAt: string;
@@ -41,6 +55,8 @@ export interface InvoiceInput {
   dueDate: string;
   totalAmount: number;
   gstAmount: number;
+  currencySymbol: string;
+  category: ExpenseCategory;
   items: InvoiceItem[];
   notes: string;
   status: InvoiceStatus;

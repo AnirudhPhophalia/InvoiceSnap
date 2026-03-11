@@ -2,6 +2,7 @@ import { Router } from "express";
 import { invoicesCollection } from "../db.js";
 import { requireAuth } from "../middleware/auth-middleware.js";
 import {
+  buildMonthlyCategorySummary,
   buildMonthlyTrends,
   buildStatusDistribution,
   buildSummary,
@@ -34,4 +35,10 @@ analyticsRouter.get("/top-vendors", async (req, res) => {
   const invoices = await invoicesCollection().find({ userId: req.user!.id }).toArray();
 
   res.json({ vendors: buildTopVendors(invoices) });
+});
+
+analyticsRouter.get("/monthly-categories", async (req, res) => {
+  const invoices = await invoicesCollection().find({ userId: req.user!.id }).toArray();
+
+  res.json({ rows: buildMonthlyCategorySummary(invoices) });
 });

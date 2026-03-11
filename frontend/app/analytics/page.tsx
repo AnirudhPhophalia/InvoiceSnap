@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { ProtectedLayout } from '@/components/protected-layout'
 import { Card } from '@/components/ui/card'
 import {
+  getAnalyticsMonthlyCategories,
   getAnalyticsStatusDistribution,
   getAnalyticsSummary,
   getAnalyticsTopVendors,
@@ -30,6 +31,7 @@ export default function AnalyticsPage() {
   const [monthlyData, setMonthlyData] = useState<Array<{ month: string; amount: number; gst: number; count: number }>>([])
   const [statusDistribution, setStatusDistribution] = useState<Array<{ name: string; value: number }>>([])
   const [topVendors, setTopVendors] = useState<Array<{ name: string; amount: number }>>([])
+  const [monthlyCategoryRows, setMonthlyCategoryRows] = useState<Array<{ month: string; categories: Array<{ category: string; amount: number }>; totalAmount: number }>>([])
   const [stats, setStats] = useState({
     totalAmount: 0,
     totalGST: 0,
@@ -44,11 +46,12 @@ export default function AnalyticsPage() {
       setError('')
 
       try {
-        const [summary, trends, distribution, vendors] = await Promise.all([
+        const [summary, trends, distribution, vendors, monthlyCategories] = await Promise.all([
           getAnalyticsSummary(),
           getAnalyticsTrends(),
           getAnalyticsStatusDistribution(),
           getAnalyticsTopVendors(),
+          getAnalyticsMonthlyCategories(),
         ])
 
         setStats({
@@ -61,6 +64,7 @@ export default function AnalyticsPage() {
         setMonthlyData(trends.trends)
         setStatusDistribution(distribution.distribution)
         setTopVendors(vendors.vendors)
+        setMonthlyCategoryRows(monthlyCategories.rows)
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load analytics')
       } finally {
@@ -209,6 +213,32 @@ export default function AnalyticsPage() {
           ) : (
             <div className="h-80 flex items-center justify-center text-muted-foreground">
               No data available
+            </div>
+          )}
+        </Card>
+
+        <Card className="p-6 mt-6">
+          <h3 className="text-lg font-semibold mb-4">Monthly Spend by Category</h3>
+          {monthlyCategoryRows.length === 0 ? (
+            <div className="text-muted-foreground">No category summary available yet</div>
+          ) : (
+            <div className="space-y-4">
+              {monthlyCategoryRows.map((row) => (
+                <div key={row.month} className="rounded-lg border border-border p-4">
+                  <div className="mb-2 flex items-center justify-between">
+                    <p className="font-medium">{row.month}</p>
+                    <p className="text-sm text-muted-foreground">Total: ₹{row.totalAmount.toFixed(2)}</p>
+                  </div>
+                  <div className="space-y-2">
+                    {row.categories.map((entry) => (
+                      <div key={`${row.month}-${entry.category}`} className="flex items-center justify-between rounded bg-secondary px-3 py-2 text-sm">
+                        <span>{entry.category}</span>
+                        <span className="font-semibold">₹{entry.amount.toFixed(2)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </Card>

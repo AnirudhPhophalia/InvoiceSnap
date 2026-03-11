@@ -1,5 +1,7 @@
 import { PDFParse } from "pdf-parse";
 import Tesseract from "tesseract.js";
+import type { ExpenseCategory, InvoiceItem } from "../types.js";
+import { suggestItemCategory } from "./categorize.js";
 
 const SUPPORTED_IMAGE_MIME_TYPES = new Set([
   "image/png",
@@ -138,11 +140,43 @@ function findFirstDate(text: string, labels?: string[], requireLabelMatch = fals
   return "";
 }
 
+function detectCurrencySymbol(text: string) {
+  if (/[\u00A3]|\bGBP\b/i.test(text)) {
+    return "\u00A3";
+  }
+
+  if (/[\u20AC]|\bEUR\b/i.test(text)) {
+    return "\u20AC";
+  }
+
+  if (/[$]|\bUSD\b/i.test(text)) {
+    return "$";
+  }
+
+  if (/[\u20B9]|\bINR\b|\bRs\.?\b/i.test(text)) {
+    return "\u20B9";
+  }
+
+  return "\u20B9";
+}
+
 function collectAmountsFromLine(line: string) {
-  const matches = line.match(/(?:Rs\.?|INR|₹)?\s*-?\d[\d,]*(?:\.\d{1,2})?/gi) || [];
+  if (/\bgstin\b/i.test(line)) {
+    return [];
+  }
+
+  const hasCurrencySymbol = /\u20B9|\bINR\b|\bRs\.?\b|\u00A3|\bGBP\b|\u20AC|\bEUR\b|\$|\bUSD\b/i.test(line);
+  const matches = line.match(/(?:Rs\.?|INR|\u20B9|GBP|\u00A3|EUR|\u20AC|USD|\$)?\s*-?\d[\d,]*(?:\.\d{1,2})?/gi) || [];
   return matches
     .map((entry) => parseAmount(entry))
-    .filter((value): value is number => typeof value === "number" && Number.isFinite(value));
+    .filter((value): value is number => typeof value === "number" && Number.isFinite(value))
+    .filter((value) => {
+      if (hasCurrencySymbol) {
+        return true;
+      }
+
+      return value >= 100;
+    });
 }
 
 function findAmountByLabels(lines: string[], labels: string[]) {
@@ -219,11 +253,104 @@ function buildFallbackItem(totalAmount: number, gstAmount: number) {
 
   return {
     description: "Extracted invoice amount",
+    category: "Other" as ExpenseCategory,
     quantity: 1,
     unitPrice: taxableAmount || totalAmount,
     total: taxableAmount || totalAmount,
     gstRate,
   };
+}
+
+function deriveEffectiveGstRate(totalAmount: number, gstAmount: number) {
+  const taxableAmount = totalAmount - gstAmount;
+  if (taxableAmount <= 0 || gstAmount <= 0) {
+    return 0;
+  }
+
+  return Number(((gstAmount / taxableAmount) * 100).toFixed(2));
+}
+
+function extractInvoiceGstRate(text: string, totalAmount: number, gstAmount: number) {
+  const gstLine = text
+    .split("\n")
+    .find((line) => /\bgst\b/i.test(line) && !/\bgstin\b/i.test(line));
+
+  if (gstLine) {
+    const explicitRate = gstLine.match(/(\d{1,2}(?:\.\d{1,2})?)\s*%/);
+    if (explicitRate?.[1]) {
+      return Number(explicitRate[1]);
+    }
+  }
+
+  const explicitGeneric = text.match(/\bgst\b[^\n]{0,40}?(\d{1,2}(?:\.\d{1,2})?)\s*%/i);
+  if (explicitGeneric?.[1]) {
+    return Number(explicitGeneric[1]);
+  }
+
+  return deriveEffectiveGstRate(totalAmount, gstAmount);
+}
+
+function looksLikeNonItemLine(line: string) {
+  const normalized = line.toLowerCase();
+  return (
+    normalized.length < 5 ||
+    normalized.includes("invoice") ||
+    normalized.includes("gst") ||
+    normalized.includes("total") ||
+    normalized.includes("tax") ||
+    normalized.includes("amount due") ||
+    normalized.includes("bill to") ||
+    normalized.includes("ship to")
+  );
+}
+
+function extractLineItems(lines: string[], totalAmount: number, gstAmount: number): InvoiceItem[] {
+  const parsed: InvoiceItem[] = [];
+  const gstRate = extractInvoiceGstRate(lines.join("\n"), totalAmount, gstAmount);
+
+  for (const line of lines) {
+    if (looksLikeNonItemLine(line)) {
+      continue;
+    }
+
+    const amounts = collectAmountsFromLine(line);
+    if (amounts.length === 0) {
+      continue;
+    }
+
+    const lineTotal = amounts[amounts.length - 1];
+    const quantityMatch = line.match(/\b(\d{1,3})(?:\s*x|\s*qty\.?\s*:?|\s*pcs\b)/i);
+    const quantity = quantityMatch?.[1] ? Number(quantityMatch[1]) : 1;
+    const safeQuantity = Number.isFinite(quantity) && quantity > 0 ? quantity : 1;
+    const unitPrice = Number((lineTotal / safeQuantity).toFixed(2));
+    const description = line
+      .replace(/(?:Rs\.?|INR|\u20B9|GBP|\u00A3|EUR|\u20AC|USD|\$)?\s*-?\d[\d,]*(?:\.\d{1,2})?/gi, "")
+      .replace(/^\s*\d+\s*[.)-]\s*/, "")
+      .replace(/^\s*[.)-]+\s*/, "")
+      .replace(/[\u2013-]+\s*(?:\u20B9|\u00A3|\u20AC|\$|INR|GBP|EUR|USD)?\s*$/i, "")
+      .replace(/\s+[lI|]\s*$/, "")
+      .replace(/\s{2,}/g, " ")
+      .trim();
+
+    if (!description || description.length < 3) {
+      continue;
+    }
+
+    parsed.push({
+      description,
+      category: suggestItemCategory(description),
+      quantity: safeQuantity,
+      unitPrice,
+      total: Number(lineTotal.toFixed(2)),
+      gstRate,
+    });
+  }
+
+  if (parsed.length === 0) {
+    return [buildFallbackItem(totalAmount, gstAmount)];
+  }
+
+  return parsed.slice(0, 12);
 }
 
 async function extractRawText(fileBuffer: Buffer, mimeType: string) {
@@ -272,6 +399,8 @@ export async function extractInvoiceFromFile(fileName: string, fileBuffer: Buffe
     sumAmountsByLabels(lines, ["cgst", "sgst", "igst", "gst"]) ??
     0;
 
+  const items = extractLineItems(lines, totalAmount, gstAmount);
+
   return {
     fileName,
     vendorName,
@@ -281,7 +410,9 @@ export async function extractInvoiceFromFile(fileName: string, fileBuffer: Buffe
     dueDate,
     totalAmount: Number(totalAmount.toFixed(2)),
     gstAmount: Number(gstAmount.toFixed(2)),
+    currencySymbol: detectCurrencySymbol(rawText),
+    category: "Other" as ExpenseCategory,
     notes: `Extracted from uploaded invoice text. Review OCR-derived values before saving.`,
-    items: [buildFallbackItem(totalAmount, gstAmount)],
+    items,
   };
 }

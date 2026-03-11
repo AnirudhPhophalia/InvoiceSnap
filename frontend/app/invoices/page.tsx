@@ -8,11 +8,27 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { formatDateOnly } from '@/lib/utils'
 import Link from 'next/link'
+import type { ExpenseCategory } from '@/lib/types'
+
+const CATEGORIES: Array<'all' | ExpenseCategory> = [
+  'all',
+  'Software',
+  'Travel',
+  'Office',
+  'Utilities',
+  'Marketing',
+  'Meals',
+  'Professional Services',
+  'Equipment',
+  'Rent',
+  'Other',
+]
 
 export default function InvoicesPage() {
   const { invoices, deleteInvoice, loading } = useInvoices()
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState<'all' | 'draft' | 'confirmed' | 'paid'>('all')
+  const [categoryFilter, setCategoryFilter] = useState<'all' | ExpenseCategory>('all')
   const [error, setError] = useState('')
 
   const handleDelete = async (id: string) => {
@@ -32,10 +48,11 @@ export default function InvoicesPage() {
         invoice.fileName.toLowerCase().includes(searchTerm.toLowerCase())
 
       const matchesStatus = statusFilter === 'all' || invoice.status === statusFilter
+      const matchesCategory = categoryFilter === 'all' || (invoice.category || 'Other') === categoryFilter
 
-      return matchesSearch && matchesStatus
+      return matchesSearch && matchesStatus && matchesCategory
     })
-  }, [invoices, searchTerm, statusFilter])
+  }, [invoices, searchTerm, statusFilter, categoryFilter])
 
   const stats = {
     total: invoices.length,
@@ -95,6 +112,19 @@ export default function InvoicesPage() {
                 </Button>
               ))}
             </div>
+            <div className="w-full md:w-64">
+              <select
+                value={categoryFilter}
+                onChange={(e) => setCategoryFilter(e.target.value as 'all' | ExpenseCategory)}
+                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+              >
+                {CATEGORIES.map((category) => (
+                  <option key={category} value={category}>
+                    {category === 'all' ? 'All Categories' : category}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
         </Card>
 
@@ -129,6 +159,9 @@ export default function InvoicesPage() {
                       </h3>
                       <p className="text-sm text-muted-foreground">
                         Invoice #{invoice.invoiceNumber || 'N/A'} • {formatDateOnly(invoice.invoiceDate)}
+                      </p>
+                      <p className="mt-1 inline-block rounded bg-secondary px-2 py-0.5 text-xs text-muted-foreground">
+                        {(invoice.category || 'Other')}
                       </p>
                     </Link>
                   </div>

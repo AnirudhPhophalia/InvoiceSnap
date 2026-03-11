@@ -1,6 +1,9 @@
 import { Router } from "express";
 import multer from "multer";
+import { invoicesCollection } from "../db.js";
 import { requireAuth } from "../middleware/auth-middleware.js";
+import { suggestExpenseCategory } from "../utils/categorize.js";
+import { applyLearnedCorrections } from "../utils/corrections.js";
 import { extractInvoiceFromFile } from "../utils/extract.js";
 
 const upload = multer({
@@ -39,5 +42,14 @@ extractRouter.post("/", upload.single("file"), async (req, res) => {
     req.file.mimetype,
   );
 
-  res.json({ extracted });
+  const corrected = await applyLearnedCorrections(req.user!.id, extracted);
+  const historicalInvoices = await invoicesCollection()
+    .find({ userId: req.user!.id })
+    .sort({ uploadedAt: -1 })
+    .limit(400)
+    .toArray();
+
+  corrected.category = suggestExpenseCategory(corrected, historicalInvoices);
+
+  res.json({ extracted: corrected });
 });

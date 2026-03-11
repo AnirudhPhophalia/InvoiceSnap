@@ -4,10 +4,24 @@ import { v4 as uuid } from "uuid";
 import { invoicesCollection } from "../db.js";
 import { requireAuth } from "../middleware/auth-middleware.js";
 import type { InvoiceRecord } from "../types.js";
+import { suggestExpenseCategory, suggestItemCategory } from "../utils/categorize.js";
+import { learnFromCorrections } from "../utils/corrections.js";
 import { renderPdfBuffer } from "../utils/pdf.js";
 
 const invoiceItemSchema = z.object({
   description: z.string(),
+  category: z.enum([
+    "Software",
+    "Travel",
+    "Office",
+    "Utilities",
+    "Marketing",
+    "Meals",
+    "Professional Services",
+    "Equipment",
+    "Rent",
+    "Other",
+  ]).optional(),
   quantity: z.number(),
   unitPrice: z.number(),
   total: z.number(),
@@ -23,6 +37,19 @@ const createInvoiceSchema = z.object({
   dueDate: z.string(),
   totalAmount: z.number(),
   gstAmount: z.number(),
+  currencySymbol: z.string().min(1).max(4).default("₹"),
+  category: z.enum([
+    "Software",
+    "Travel",
+    "Office",
+    "Utilities",
+    "Marketing",
+    "Meals",
+    "Professional Services",
+    "Equipment",
+    "Rent",
+    "Other",
+  ]).default("Other"),
   items: z.array(invoiceItemSchema),
   notes: z.string(),
   status: z.enum(["draft", "confirmed", "paid"]),
@@ -56,7 +83,8 @@ invoiceRouter.get("/", async (req, res) => {
       return (
         invoice.vendorName.toLowerCase().includes(search) ||
         invoice.invoiceNumber.toLowerCase().includes(search) ||
-        invoice.fileName.toLowerCase().includes(search)
+        invoice.fileName.toLowerCase().includes(search) ||
+        (invoice.category || "Other").toLowerCase().includes(search)
       );
     });
 
@@ -71,10 +99,23 @@ invoiceRouter.post("/", async (req, res) => {
   }
 
   const invoicesStore = invoicesCollection();
+  const userInvoiceHistory = await invoicesStore
+    .find({ userId: req.user!.id })
+    .sort({ uploadedAt: -1 })
+    .limit(300)
+    .toArray();
+
+  const category = suggestExpenseCategory(parsed.data, userInvoiceHistory);
+  const items = parsed.data.items.map((item) => ({
+    ...item,
+    category: item.category || suggestItemCategory(item.description),
+  }));
   const newInvoice: InvoiceRecord = {
     id: uuid(),
     userId: req.user!.id,
     ...parsed.data,
+    items,
+    category,
     uploadedAt: new Date().toISOString(),
   };
 
@@ -109,8 +150,40 @@ invoiceRouter.patch("/:id", async (req, res) => {
     return;
   }
 
-  Object.assign(target, parsed.data);
-  await invoicesStore.updateOne({ id: target.id, userId: req.user!.id }, { $set: parsed.data });
+  const updates: Partial<InvoiceRecord> = { ...parsed.data };
+  if (!updates.category) {
+    const historicalInvoices = await invoicesStore
+      .find({ userId: req.user!.id, id: { $ne: target.id } })
+      .sort({ uploadedAt: -1 })
+      .limit(300)
+      .toArray();
+
+    const candidate = {
+      fileName: updates.fileName ?? target.fileName,
+      vendorName: updates.vendorName ?? target.vendorName,
+      vendorGSTIN: updates.vendorGSTIN ?? target.vendorGSTIN,
+      notes: updates.notes ?? target.notes,
+      items: updates.items ?? target.items,
+      category: "Other" as const,
+    };
+
+    updates.category = suggestExpenseCategory(candidate, historicalInvoices);
+  }
+
+  if (updates.items) {
+    updates.items = updates.items.map((item) => ({
+      ...item,
+      category: item.category || suggestItemCategory(item.description),
+    }));
+  }
+
+  if (!updates.currencySymbol) {
+    updates.currencySymbol = target.currencySymbol || "₹";
+  }
+
+  await learnFromCorrections(req.user!.id, target, updates);
+  Object.assign(target, updates);
+  await invoicesStore.updateOne({ id: target.id, userId: req.user!.id }, { $set: updates });
 
   res.json({ invoice: target });
 });
@@ -138,7 +211,7 @@ invoiceRouter.get("/:id/export/pdf", async (req, res) => {
     const startX = doc.page.margins.left;
     const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
 
-    const money = (value: number) => `INR ${value.toFixed(2)}`;
+    const money = (value: number) => `${invoice.currencySymbol || "₹"} ${value.toFixed(2)}`;
 
     doc
       .save()

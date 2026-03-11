@@ -1,7 +1,19 @@
 export type InvoiceStatus = "draft" | "confirmed" | "paid";
+export type ExpenseCategory =
+  | "Software"
+  | "Travel"
+  | "Office"
+  | "Utilities"
+  | "Marketing"
+  | "Meals"
+  | "Professional Services"
+  | "Equipment"
+  | "Rent"
+  | "Other";
 
 export interface InvoiceItem {
   description: string;
+  category?: ExpenseCategory;
   quantity: number;
   unitPrice: number;
   total: number;
@@ -19,10 +31,24 @@ export interface InvoiceRecord {
   dueDate: string;
   totalAmount: number;
   gstAmount: number;
+  currencySymbol: string;
+  category: ExpenseCategory;
   items: InvoiceItem[];
   notes: string;
   uploadedAt: string;
   status: InvoiceStatus;
+}
+
+export interface CorrectionRecord {
+  id: string;
+  userId: string;
+  vendorKey: string;
+  field: "vendorName" | "vendorGSTIN" | "invoiceDate" | "totalAmount" | "gstAmount" | "category";
+  incorrectValue: string;
+  correctedValue: string;
+  count: number;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface UserRecord {
@@ -37,6 +63,7 @@ export interface UserRecord {
 export interface Database {
   users: UserRecord[];
   invoices: InvoiceRecord[];
+  corrections: CorrectionRecord[];
 }
 
 export interface AuthResponseUser {

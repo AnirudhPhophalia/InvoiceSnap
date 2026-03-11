@@ -150,6 +150,16 @@ export async function getAnalyticsTopVendors() {
   return request<{ vendors: Array<{ name: string; amount: number }> }>("/analytics/top-vendors");
 }
 
+export async function getAnalyticsMonthlyCategories() {
+  return request<{
+    rows: Array<{
+      month: string;
+      categories: Array<{ category: string; amount: number }>;
+      totalAmount: number;
+    }>;
+  }>("/analytics/monthly-categories");
+}
+
 export async function getGstReport(month: string) {
   return request<{
     month: string;

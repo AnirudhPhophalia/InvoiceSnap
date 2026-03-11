@@ -24,7 +24,7 @@ export function formatMonthYear(dateString: string): string {
 }
 
 // Calculate GST on amount
-export function calculateGST(amount: number, gstRate: number = 18): number {
+export function calculateGST(amount: number, gstRate: number): number {
   return (amount * gstRate) / 100
 }
 

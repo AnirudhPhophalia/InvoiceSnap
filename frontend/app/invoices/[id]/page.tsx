@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { ProtectedLayout } from '@/components/protected-layout'
 import { useInvoices } from '@/context/invoice-context'
 import { useParams } from 'next/navigation'
@@ -9,12 +9,35 @@ import { Button } from '@/components/ui/button'
 import Link from 'next/link'
 import { downloadFile } from '@/lib/api'
 import { formatDateOnly } from '@/lib/utils'
+import type { ExpenseCategory, Invoice } from '@/lib/types'
+
+const CATEGORIES: ExpenseCategory[] = [
+  'Software',
+  'Travel',
+  'Office',
+  'Utilities',
+  'Marketing',
+  'Meals',
+  'Professional Services',
+  'Equipment',
+  'Rent',
+  'Other',
+]
 
 export default function InvoiceDetailPage() {
   const { id } = useParams()
   const { getInvoiceById, updateInvoice, loading } = useInvoices()
   const invoice = getInvoiceById(id as string)
   const [error, setError] = useState('')
+  const [editing, setEditing] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [draft, setDraft] = useState<Invoice | null>(null)
+
+  useEffect(() => {
+    if (invoice) {
+      setDraft(invoice)
+    }
+  }, [invoice])
 
   if (loading) {
     return (
@@ -46,6 +69,74 @@ export default function InvoiceDetailPage() {
     }
   }
 
+  const handleDraftChange = (field: keyof Invoice, value: string) => {
+    if (!draft) {
+      return
+    }
+
+    setDraft({
+      ...draft,
+      [field]: field === 'totalAmount' || field === 'gstAmount' ? parseFloat(value) || 0 : value,
+    })
+  }
+
+  const handleItemChange = (index: number, field: 'description' | 'category' | 'quantity' | 'unitPrice' | 'total' | 'gstRate', value: string) => {
+    if (!draft) {
+      return
+    }
+
+    const items = draft.items.map((item, itemIndex) => {
+      if (itemIndex !== index) {
+        const taxableTotal = Number((item.quantity * item.unitPrice).toFixed(2))
+        return { ...item, total: taxableTotal }
+      }
+
+      if (field === 'description') {
+        return { ...item, description: value }
+      }
+
+      if (field === 'category') {
+        return { ...item, category: value as ExpenseCategory }
+      }
+
+      const next = {
+        ...item,
+        [field]: parseFloat(value) || 0,
+      }
+      next.total = Number((next.quantity * next.unitPrice).toFixed(2))
+      return next
+    })
+
+    setDraft({ ...draft, items })
+  }
+
+  const handleSaveChanges = async () => {
+    if (!draft) {
+      return
+    }
+
+    setSaving(true)
+    setError('')
+    try {
+      await updateInvoice(invoice.id, {
+        vendorName: draft.vendorName,
+        vendorGSTIN: draft.vendorGSTIN,
+        invoiceNumber: draft.invoiceNumber,
+        invoiceDate: draft.invoiceDate,
+        dueDate: draft.dueDate,
+        totalAmount: draft.totalAmount,
+        gstAmount: draft.gstAmount,
+        items: draft.items,
+        notes: draft.notes,
+      })
+      setEditing(false)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save changes')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const handleDownload = async (path: string, fallbackName: string) => {
     setError('')
     try {
@@ -69,6 +160,12 @@ export default function InvoiceDetailPage() {
       setError(err instanceof Error ? err.message : 'Failed to download file')
     }
   }
+
+  const subtotal = Math.max(invoice.totalAmount - invoice.gstAmount, 0)
+  const effectiveGstRate =
+    subtotal > 0 && invoice.gstAmount > 0
+      ? Number(((invoice.gstAmount / subtotal) * 100).toFixed(2))
+      : 0
 
   return (
     <ProtectedLayout>
@@ -105,7 +202,7 @@ export default function InvoiceDetailPage() {
                 </div>
                 <div className="text-right">
                   <p className="text-3xl font-bold text-primary">
-                    ₹{invoice.totalAmount.toFixed(2)}
+                    {invoice.currencySymbol || '₹'}{invoice.totalAmount.toFixed(2)}
                   </p>
                 </div>
               </div>
@@ -132,6 +229,63 @@ export default function InvoiceDetailPage() {
               </div>
             </div>
 
+            {editing && draft && (
+              <div className="mb-8 rounded-lg border border-border bg-secondary/40 p-4">
+                <h3 className="mb-4 text-lg font-semibold">Edit Extracted Data</h3>
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <input className="h-10 rounded-md border border-input bg-background px-3" value={draft.vendorName} onChange={(e) => handleDraftChange('vendorName', e.target.value)} />
+                  <input className="h-10 rounded-md border border-input bg-background px-3" value={draft.vendorGSTIN} onChange={(e) => handleDraftChange('vendorGSTIN', e.target.value)} />
+                  <input className="h-10 rounded-md border border-input bg-background px-3" value={draft.invoiceNumber} onChange={(e) => handleDraftChange('invoiceNumber', e.target.value)} />
+                  <input type="date" className="h-10 rounded-md border border-input bg-background px-3" value={draft.invoiceDate} onChange={(e) => handleDraftChange('invoiceDate', e.target.value)} />
+                  <input type="date" className="h-10 rounded-md border border-input bg-background px-3" value={draft.dueDate} onChange={(e) => handleDraftChange('dueDate', e.target.value)} />
+                  <input type="number" className="h-10 rounded-md border border-input bg-background px-3" value={draft.totalAmount} onChange={(e) => handleDraftChange('totalAmount', e.target.value)} />
+                  <input type="number" className="h-10 rounded-md border border-input bg-background px-3" value={draft.gstAmount} onChange={(e) => handleDraftChange('gstAmount', e.target.value)} />
+                </div>
+                <div className="mt-4 overflow-x-auto">
+                  <div className="min-w-[750px] space-y-2">
+                    <div className="grid grid-cols-12 gap-2 px-1 text-xs font-medium text-muted-foreground">
+                      <span className="col-span-4">Item Name</span>
+                      <span className="col-span-2">Category</span>
+                      <span className="col-span-1">Qty</span>
+                      <span className="col-span-2">Unit Price ({invoice.currencySymbol || '₹'})</span>
+                      <span className="col-span-1">GST%</span>
+                      <span className="col-span-2">Total Incl GST ({invoice.currencySymbol || '₹'})</span>
+                    </div>
+                    {draft.items.map((item, index) => (
+                      <div key={`${item.description}-${index}`} className="grid grid-cols-12 gap-2 items-center">
+                        <input className="col-span-4 h-10 rounded-md border border-input bg-background px-3 text-sm min-w-0" value={item.description} onChange={(e) => handleItemChange(index, 'description', e.target.value)} />
+                        <select className="col-span-2 h-10 rounded-md border border-input bg-background px-2 text-sm min-w-0" value={item.category || 'Other'} onChange={(e) => handleItemChange(index, 'category', e.target.value)}>
+                          {CATEGORIES.map((option) => (
+                            <option key={option} value={option}>{option}</option>
+                          ))}
+                        </select>
+                        <input type="number" className="col-span-1 h-10 rounded-md border border-input bg-background px-2 text-sm min-w-0" value={item.quantity} onChange={(e) => handleItemChange(index, 'quantity', e.target.value)} />
+                        <div className="col-span-2 flex items-center gap-1 min-w-0">
+                          <span className="text-sm text-muted-foreground shrink-0">{invoice.currencySymbol || '₹'}</span>
+                          <input type="number" className="h-10 w-full rounded-md border border-input bg-background px-2 text-sm min-w-0" value={item.unitPrice} onChange={(e) => handleItemChange(index, 'unitPrice', e.target.value)} />
+                        </div>
+                        <input type="number" className="col-span-1 h-10 rounded-md border border-input bg-background px-2 text-sm min-w-0" value={item.gstRate} onChange={(e) => handleItemChange(index, 'gstRate', e.target.value)} />
+                        <div className="col-span-2 flex items-center gap-1 min-w-0">
+                          <span className="text-sm text-muted-foreground shrink-0">{invoice.currencySymbol || '₹'}</span>
+                          <input type="number" readOnly className="h-10 w-full rounded-md border border-input bg-background px-2 text-sm min-w-0 bg-muted/40" value={Number((item.total + (item.total * item.gstRate) / 100).toFixed(2))} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <textarea
+                  className="mt-4 w-full rounded-md border border-input bg-background px-3 py-2"
+                  rows={3}
+                  value={draft.notes}
+                  onChange={(e) => handleDraftChange('notes', e.target.value)}
+                />
+                <div className="mt-4 flex gap-2">
+                  <Button onClick={() => void handleSaveChanges()} disabled={saving}>{saving ? 'Saving...' : 'Save Changes'}</Button>
+                  <Button variant="outline" onClick={() => setEditing(false)} disabled={saving}>Cancel</Button>
+                </div>
+              </div>
+            )}
+
             {/* Items */}
             <div className="mb-8">
               <h3 className="text-lg font-semibold mb-4">Items</h3>
@@ -140,11 +294,11 @@ export default function InvoiceDetailPage() {
                   <div key={idx} className="p-4 bg-secondary rounded-lg">
                     <div className="flex justify-between mb-2">
                       <p className="font-medium">{item.description}</p>
-                      <p className="font-semibold">₹{item.total.toFixed(2)}</p>
+                      <p className="font-semibold">{invoice.currencySymbol || '₹'}{item.total.toFixed(2)}</p>
                     </div>
                     <div className="text-sm text-muted-foreground flex justify-between">
-                      <span>{item.quantity} × ₹{item.unitPrice.toFixed(2)}</span>
-                      <span>GST: {item.gstRate}%</span>
+                      <span>{item.quantity} × {invoice.currencySymbol || '₹'}{item.unitPrice.toFixed(2)}</span>
+                      <span>{item.category || 'Other'} • GST: {item.gstRate}%</span>
                     </div>
                   </div>
                 ))}
@@ -155,15 +309,15 @@ export default function InvoiceDetailPage() {
             <div className="space-y-2 mb-8 p-4 bg-secondary rounded-lg">
               <div className="flex justify-between text-sm">
                 <span>Subtotal</span>
-                <span>₹{(invoice.totalAmount - invoice.gstAmount).toFixed(2)}</span>
+                <span>{invoice.currencySymbol || '₹'}{subtotal.toFixed(2)}</span>
               </div>
               <div className="flex justify-between text-sm">
-                <span>GST (18%)</span>
-                <span>₹{invoice.gstAmount.toFixed(2)}</span>
+                <span>GST ({effectiveGstRate.toFixed(2)}%)</span>
+                <span>{invoice.currencySymbol || '₹'}{invoice.gstAmount.toFixed(2)}</span>
               </div>
               <div className="flex justify-between font-bold text-lg pt-2 border-t border-border">
                 <span>Total</span>
-                <span>₹{invoice.totalAmount.toFixed(2)}</span>
+                <span>{invoice.currencySymbol || '₹'}{invoice.totalAmount.toFixed(2)}</span>
               </div>
             </div>
 
@@ -196,6 +350,9 @@ export default function InvoiceDetailPage() {
                   </Button>
                 ))}
               </div>
+              <Button variant="outline" className="mt-4 w-full" onClick={() => setEditing((prev) => !prev)}>
+                {editing ? 'Close Edit Mode' : 'Edit Extracted Data'}
+              </Button>
             </Card>
 
             {/* Export Card */}

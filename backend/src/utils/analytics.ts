@@ -55,6 +55,39 @@ export function buildTopVendors(invoices: InvoiceRecord[]) {
     .map(([name, amount]) => ({ name, amount }));
 }
 
+export function buildMonthlyCategorySummary(invoices: InvoiceRecord[]) {
+  const byMonth = new Map<string, Map<string, number>>();
+
+  for (const invoice of invoices) {
+    const date = new Date(invoice.invoiceDate);
+    if (Number.isNaN(date.getTime())) {
+      continue;
+    }
+
+    const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+    if (!byMonth.has(monthKey)) {
+      byMonth.set(monthKey, new Map<string, number>());
+    }
+
+    const bucket = byMonth.get(monthKey)!;
+    const category = invoice.category || "Other";
+    bucket.set(category, (bucket.get(category) || 0) + invoice.totalAmount);
+  }
+
+  return [...byMonth.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .slice(-12)
+    .map(([month, categoryMap]) => ({
+      month,
+      categories: [...categoryMap.entries()]
+        .map(([category, amount]) => ({ category, amount: Number(amount.toFixed(2)) }))
+        .sort((a, b) => b.amount - a.amount),
+      totalAmount: Number(
+        [...categoryMap.values()].reduce((sum, value) => sum + value, 0).toFixed(2),
+      ),
+    }));
+}
+
 export function buildStatusDistribution(invoices: InvoiceRecord[]) {
   const counts = { draft: 0, confirmed: 0, paid: 0 };
 

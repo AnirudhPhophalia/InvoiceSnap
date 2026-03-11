@@ -25,7 +25,7 @@ export function InvoiceProvider({ children }: { children: React.ReactNode }) {
   const refreshInvoices = async () => {
     try {
       const { invoices: rows } = await listInvoices()
-      setInvoices(rows)
+      setInvoices(rows.map((invoice) => ({ ...invoice, category: invoice.category || 'Other', currencySymbol: invoice.currencySymbol || '₹' })))
     } catch {
       setInvoices([])
     } finally {
@@ -45,14 +45,16 @@ export function InvoiceProvider({ children }: { children: React.ReactNode }) {
 
   const addInvoice = async (invoice: InvoiceInput) => {
     const { invoice: created } = await createInvoice(invoice)
-    setInvoices((prev) => [created, ...prev])
-    return created
+    const normalized = { ...created, category: created.category || 'Other', currencySymbol: created.currencySymbol || '₹' }
+    setInvoices((prev) => [normalized, ...prev])
+    return normalized
   }
 
   const updateInvoice = async (id: string, updates: Partial<Invoice>) => {
     const { invoice: updated } = await patchInvoice(id, updates)
-    setInvoices((prev) => prev.map((invoice) => (invoice.id === id ? updated : invoice)))
-    return updated
+    const normalized = { ...updated, category: updated.category || 'Other', currencySymbol: updated.currencySymbol || '₹' }
+    setInvoices((prev) => prev.map((invoice) => (invoice.id === id ? normalized : invoice)))
+    return normalized
   }
 
   const deleteInvoice = async (id: string) => {
