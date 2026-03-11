@@ -206,13 +206,20 @@ export default function UploadPage() {
 
   return (
     <ProtectedLayout>
-      <div className="p-8 max-w-4xl mx-auto">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-foreground mb-2">Upload Invoice</h1>
-          <p className="text-muted-foreground">
-            Upload an invoice image or PDF to extract data with AI
-          </p>
-        </div>
+      <div className="p-6 md:p-8 max-w-5xl mx-auto space-y-6">
+        <Card className="relative overflow-hidden border-0 bg-gradient-to-r from-indigo-600 via-indigo-500 to-cyan-500 p-6 md:p-8 text-white shadow-xl">
+          <div className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-white/15 blur-2xl" />
+          <div className="pointer-events-none absolute -bottom-14 left-16 h-36 w-36 rounded-full bg-cyan-300/20 blur-3xl" />
+          <div className="relative">
+            <p className="mb-2 inline-flex rounded-full border border-white/30 bg-white/15 px-3 py-1 text-xs tracking-wide">AI Invoice Extraction</p>
+            <h1 className="text-3xl font-bold mb-2">Upload Invoice</h1>
+            <p className="text-white/85 max-w-2xl">
+              Drag and drop an invoice image or PDF. We will auto-detect vendor, GST, totals, currency, and line items for quick review.
+            </p>
+          </div>
+        </Card>
+
+        
 
         {step === 'upload' ? (
           <div
@@ -220,42 +227,48 @@ export default function UploadPage() {
             onDragLeave={handleDrag}
             onDragOver={handleDrag}
             onDrop={handleDrop}
-            className={`p-12 border-2 border-dashed rounded-lg transition-colors cursor-pointer ${
+            className={`rounded-2xl border-2 border-dashed p-6 md:p-10 transition-all duration-300 cursor-pointer shadow-sm ${
               dragActive
-                ? 'border-primary bg-primary/5'
-                : 'border-border hover:border-primary'
+                ? 'border-primary bg-primary/10 shadow-lg shadow-primary/10'
+                : 'border-border bg-card/70 hover:border-primary/70 hover:bg-primary/5'
             }`}
           >
-            <Card className="p-0 border-0 bg-transparent">
-            <div className="text-center">
-              <div className="text-6xl mb-4">📸</div>
-              <h2 className="text-2xl font-bold mb-2">Upload your invoice</h2>
-              <p className="text-muted-foreground mb-6">
-                Drag and drop your invoice image or PDF here, or click to select
-              </p>
+            <Card className="border border-border/60 bg-background/60 backdrop-blur-sm p-8 md:p-10">
+              <div className="text-center">
+                <div className="mx-auto mb-5 grid h-20 w-20 place-items-center rounded-2xl bg-gradient-to-br from-indigo-500/20 to-cyan-500/20 text-4xl ring-1 ring-indigo-500/20">📸</div>
+                <h2 className="text-2xl md:text-3xl font-semibold mb-2">Upload your invoice</h2>
+                <p className="text-muted-foreground mb-7 max-w-2xl mx-auto">
+                  Drop files here or use the button below. Extraction starts automatically after you select a file.
+                </p>
 
-              <div className="relative inline-block">
-                <input
-                  type="file"
-                  accept=".pdf,.png,.jpg,.jpeg,.webp"
-                  onChange={handleInputChange}
-                  className="absolute inset-0 opacity-0 cursor-pointer"
-                />
-                <Button size="lg" variant="outline">
-                  Choose File
-                </Button>
+                <div className="relative inline-block">
+                  <input
+                    type="file"
+                    accept=".pdf,.png,.jpg,.jpeg,.webp"
+                    onChange={handleInputChange}
+                    className="absolute inset-0 opacity-0 cursor-pointer"
+                  />
+                  <Button size="lg" className="px-8 shadow-md">
+                    Choose File
+                  </Button>
+                </div>
+
+                <p className="text-xs text-muted-foreground mt-7">
+                  Supported formats: PDF, PNG, JPG, JPEG, WebP (Max 10MB)
+                </p>
+
+                <div className="mt-5 flex flex-wrap justify-center gap-2 text-xs text-muted-foreground">
+                  <span className="rounded-full border border-border px-3 py-1">Secure upload</span>
+                  <span className="rounded-full border border-border px-3 py-1">Fast OCR</span>
+                  <span className="rounded-full border border-border px-3 py-1">Editable before save</span>
+                </div>
               </div>
-
-              <p className="text-xs text-muted-foreground mt-6">
-                Supported formats: PDF, PNG, JPG, JPEG, WebP (Max 10MB)
-              </p>
-            </div>
             </Card>
           </div>
         ) : (
           <div className="space-y-6">
             {/* AI Extraction Status */}
-            <Card className="p-6 bg-gradient-to-r from-primary/10 to-accent/10 border-0">
+            <Card className="p-6 border-0 bg-gradient-to-r from-emerald-500/10 via-cyan-500/10 to-indigo-500/10 shadow-sm">
               <div className="flex items-center gap-4">
                 <div className={extracting ? 'animate-spin' : ''}>
                   {extracting ? '⏳' : '✓'}

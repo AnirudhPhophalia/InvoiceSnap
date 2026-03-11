@@ -85,12 +85,16 @@ export default function GSTReportsPage() {
 
   return (
     <ProtectedLayout>
-      <div className="p-8">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-foreground mb-2">GST Reports</h1>
-          <p className="text-muted-foreground">Generate and track your GST compliance</p>
-        </div>
+      <div className="p-6 md:p-8 max-w-6xl mx-auto">
+        <Card className="relative mb-8 overflow-hidden border-0 bg-gradient-to-r from-indigo-600 via-violet-500 to-cyan-500 p-6 md:p-8 text-white shadow-xl">
+          <div className="pointer-events-none absolute -right-12 -top-12 h-44 w-44 rounded-full bg-white/20 blur-2xl" />
+          <div className="pointer-events-none absolute -bottom-16 left-20 h-36 w-36 rounded-full bg-cyan-300/25 blur-3xl" />
+          <div className="relative">
+            <p className="mb-2 inline-flex rounded-full border border-white/30 bg-white/15 px-3 py-1 text-xs tracking-wide">Compliance Analytics</p>
+            <h1 className="text-3xl font-bold mb-2">GST Reports</h1>
+            <p className="text-white/85">Track your monthly GST liability, tax split, and invoice-level contribution in one place.</p>
+          </div>
+        </Card>
 
         {error && (
           <Card className="p-4 mb-6 border-destructive/40 bg-destructive/10 text-destructive">
@@ -103,26 +107,34 @@ export default function GSTReportsPage() {
         )}
 
         {/* Month Selector */}
-        <Card className="p-6 mb-8">
-          <label className="block text-sm font-medium mb-3">Select Month</label>
-          <select
-            value={selectedMonth}
-            onChange={(e) => setSelectedMonth(e.target.value)}
-            className="w-full px-4 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20"
-          >
-            {monthOptions.map((month) => (
-              <option key={month} value={month}>
-                {new Date(`${month}-01`).toLocaleDateString('en-US', {
-                  month: 'long',
-                  year: 'numeric',
-                })}
-              </option>
-            ))}
-          </select>
+        <Card className="p-5 md:p-6 mb-8 border-border/70 shadow-sm">
+          <div className="flex flex-col md:flex-row md:items-end gap-4">
+            <div className="flex-1">
+              <label className="block text-sm font-medium mb-2">Select Month</label>
+              <select
+                value={selectedMonth}
+                onChange={(e) => setSelectedMonth(e.target.value)}
+                className="w-full px-4 py-2.5 border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/20"
+              >
+                {monthOptions.map((month) => (
+                  <option key={month} value={month}>
+                    {new Date(`${month}-01`).toLocaleDateString('en-US', {
+                      month: 'long',
+                      year: 'numeric',
+                    })}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex gap-2">
+              <Button onClick={() => void handleExport('pdf')}>Download PDF</Button>
+              <Button variant="outline" onClick={() => void handleExport('excel')}>Export CSV</Button>
+            </div>
+          </div>
         </Card>
 
         {/* Summary Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mb-8">
           {[
             {
               label: 'Period',
@@ -145,20 +157,20 @@ export default function GSTReportsPage() {
               icon: '📋',
             },
           ].map((stat) => (
-            <Card key={stat.label} className="p-6">
+            <Card key={stat.label} className="p-5 border-border/70 shadow-sm hover:shadow-md transition-shadow duration-300">
               <div className="flex items-start justify-between">
                 <div>
                   <p className="text-sm text-muted-foreground mb-1">{stat.label}</p>
                   <p className="text-2xl font-bold text-foreground">{stat.value}</p>
                 </div>
-                <span className="text-3xl">{stat.icon}</span>
+                <span className="grid h-10 w-10 place-items-center rounded-xl bg-secondary text-2xl">{stat.icon}</span>
               </div>
             </Card>
           ))}
         </div>
 
         {/* GST Breakdown Table */}
-        <Card className="p-6 mb-8">
+        <Card className="p-6 mb-8 border-border/70 shadow-sm">
           <h3 className="text-lg font-semibold mb-4">GST Breakdown</h3>
 
           {monthlyInvoices.length === 0 ? (
@@ -166,18 +178,18 @@ export default function GSTReportsPage() {
               No invoices for this period
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
+            <div className="overflow-x-auto rounded-xl border border-border/70">
+              <table className="w-full bg-card">
                 <thead>
-                  <tr className="border-b border-border">
-                    <th className="text-left py-3 px-4 font-semibold">GST Rate</th>
-                    <th className="text-right py-3 px-4 font-semibold">Items Count</th>
-                    <th className="text-right py-3 px-4 font-semibold">GST Amount</th>
+                  <tr className="border-b border-border bg-secondary/70">
+                    <th className="text-left py-3 px-4 font-semibold tracking-wide text-xs uppercase">GST Rate</th>
+                    <th className="text-right py-3 px-4 font-semibold tracking-wide text-xs uppercase">Items Count</th>
+                    <th className="text-right py-3 px-4 font-semibold tracking-wide text-xs uppercase">GST Amount</th>
                   </tr>
                 </thead>
                 <tbody>
                   {gstBreakdown.map((item) => (
-                    <tr key={item.rate} className="border-b border-border hover:bg-secondary transition-colors">
+                    <tr key={item.rate} className="border-b border-border/70 hover:bg-secondary/50 transition-colors">
                       <td className="py-3 px-4">{item.rate}%</td>
                       <td className="text-right py-3 px-4">{item.invoiceCount}</td>
                       <td className="text-right py-3 px-4 font-semibold">
@@ -185,7 +197,7 @@ export default function GSTReportsPage() {
                       </td>
                     </tr>
                   ))}
-                  <tr className="font-bold text-lg border-t-2 border-border">
+                  <tr className="font-bold text-lg border-t-2 border-primary/30 bg-primary/5">
                     <td className="py-3 px-4">Total</td>
                     <td className="text-right py-3 px-4">
                       {gstBreakdown.reduce((sum, item) => sum + item.invoiceCount, 0)}
@@ -199,7 +211,7 @@ export default function GSTReportsPage() {
         </Card>
 
         {/* Invoices in Period */}
-        <Card className="p-6">
+        <Card className="p-6 border-border/70 shadow-sm">
           <h3 className="text-lg font-semibold mb-4">Invoices for {monthLabel}</h3>
 
           {monthlyInvoices.length === 0 ? (
@@ -209,10 +221,7 @@ export default function GSTReportsPage() {
           ) : (
             <div className="space-y-3 max-h-96 overflow-y-auto">
               {monthlyInvoices.map((inv) => (
-                <div
-                  key={inv.id}
-                  className="p-4 border border-border rounded-lg hover:bg-secondary transition-colors"
-                >
+                <div key={inv.id} className="p-4 border border-border/70 rounded-xl hover:bg-secondary/60 transition-colors">
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="font-medium">{inv.vendorName || inv.fileName}</p>
@@ -234,7 +243,7 @@ export default function GSTReportsPage() {
         </Card>
 
         {/* Export Section */}
-        <div className="mt-8 flex gap-4">
+        <div className="mt-8 flex flex-wrap gap-3">
           <Button onClick={() => void handleExport('pdf')}>Download GST Report (PDF)</Button>
           <Button variant="outline" onClick={() => void handleExport('excel')}>Export to Excel</Button>
           <Button variant="outline" onClick={handlePrint}>Print Report</Button>
