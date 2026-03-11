@@ -3,7 +3,9 @@
 import { useEffect, useState } from 'react'
 import { ProtectedLayout } from '@/components/protected-layout'
 import { useAuth } from '@/context/auth-context'
+import { useInvoices } from '@/context/invoice-context'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -11,6 +13,7 @@ import { logoutAll, updatePassword, updateSettings } from '@/lib/api'
 
 export default function SettingsPage() {
   const { user, logout, setUser } = useAuth()
+  const { invoices } = useInvoices()
   const router = useRouter()
   const [activeTab, setActiveTab] = useState('profile')
   const [formData, setFormData] = useState({
@@ -106,6 +109,13 @@ export default function SettingsPage() {
     { id: 'about', label: 'About', icon: 'ℹ️' },
   ]
 
+  const memberSince = user?.createdAt
+    ? new Date(user.createdAt).toLocaleDateString('en-IN', { year: 'numeric', month: 'short' })
+    : 'Not available'
+
+  const draftCount = invoices.filter((invoice) => invoice.status === 'draft').length
+  const paidCount = invoices.filter((invoice) => invoice.status === 'paid').length
+
   return (
     <ProtectedLayout>
       <div className="p-8 max-w-4xl mx-auto">
@@ -194,14 +204,22 @@ export default function SettingsPage() {
 
             <Card className="p-6">
               <h3 className="text-lg font-semibold mb-4">Account Statistics</h3>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="p-4 bg-secondary rounded-lg">
                   <p className="text-sm text-muted-foreground">Member Since</p>
-                  <p className="text-lg font-semibold">2024</p>
+                  <p className="text-lg font-semibold">{memberSince}</p>
                 </div>
                 <div className="p-4 bg-secondary rounded-lg">
                   <p className="text-sm text-muted-foreground">Account Status</p>
-                  <p className="text-lg font-semibold">Active</p>
+                  <p className="text-lg font-semibold">{user ? 'Active' : 'Inactive'}</p>
+                </div>
+                <div className="p-4 bg-secondary rounded-lg">
+                  <p className="text-sm text-muted-foreground">Total Invoices</p>
+                  <p className="text-lg font-semibold">{invoices.length}</p>
+                </div>
+                <div className="p-4 bg-secondary rounded-lg">
+                  <p className="text-sm text-muted-foreground">Draft / Paid</p>
+                  <p className="text-lg font-semibold">{draftCount} / {paidCount}</p>
                 </div>
               </div>
             </Card>
@@ -356,15 +374,15 @@ export default function SettingsPage() {
                 <div>
                   <p className="text-sm text-muted-foreground mb-2">Privacy & Terms</p>
                   <div className="flex gap-4">
-                    <a href="#" className="text-primary hover:underline text-sm">
+                    <Link href="/privacy-policy" className="text-primary hover:underline text-sm">
                       Privacy Policy
-                    </a>
-                    <a href="#" className="text-primary hover:underline text-sm">
+                    </Link>
+                    <Link href="/terms-of-service" className="text-primary hover:underline text-sm">
                       Terms of Service
-                    </a>
-                    <a href="#" className="text-primary hover:underline text-sm">
+                    </Link>
+                    <Link href="/support" className="text-primary hover:underline text-sm">
                       Contact Support
-                    </a>
+                    </Link>
                   </div>
                 </div>
               </div>
@@ -375,7 +393,9 @@ export default function SettingsPage() {
               <p className="text-sm text-muted-foreground mb-4">
                 We'd love to hear your ideas for making InvoiceSnap even better.
               </p>
-              <Button variant="outline">Send Feedback</Button>
+              <Link href="/feedback">
+                <Button variant="outline">Send Feedback</Button>
+              </Link>
             </Card>
           </div>
         )}

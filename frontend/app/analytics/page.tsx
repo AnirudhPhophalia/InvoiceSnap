@@ -21,7 +21,6 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
-  Legend,
   ResponsiveContainer,
 } from 'recharts'
 
@@ -125,7 +124,6 @@ export default function AnalyticsPage() {
                   <XAxis dataKey="month" />
                   <YAxis />
                   <Tooltip formatter={(value) => `₹${value}`} />
-                  <Legend />
                   <Line
                     type="monotone"
                     dataKey="amount"
@@ -153,25 +151,40 @@ export default function AnalyticsPage() {
           <Card className="p-6">
             <h3 className="text-lg font-semibold mb-4">Status Distribution</h3>
             {stats.totalInvoices > 0 ? (
-              <ResponsiveContainer width="100%" height={300}>
-                <PieChart>
-                  <Pie
-                    data={statusDistribution}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    label={({ name, value }) => `${name}: ${value}`}
-                    outerRadius={80}
-                    fill="#8884d8"
-                    dataKey="value"
-                  >
-                    {COLORS.map((color, index) => (
-                      <Cell key={`cell-${index}`} fill={color} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
+              <div className="h-[300px] flex flex-col">
+                <ResponsiveContainer width="100%" height={210}>
+                  <PieChart>
+                    <Pie
+                      data={statusDistribution}
+                      cx="50%"
+                      cy="48%"
+                      labelLine={false}
+                      label={false}
+                      outerRadius={70}
+                      innerRadius={34}
+                      fill="#8884d8"
+                      dataKey="value"
+                    >
+                      {statusDistribution.map((entry, index) => (
+                        <Cell key={`${entry.name}-${index}`} fill={COLORS[index % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip formatter={(value: number, _name, props) => [`${value}`, `${props?.payload?.name || 'Status'}`]} />
+                  </PieChart>
+                </ResponsiveContainer>
+
+                <div className="mt-2 grid grid-cols-1 gap-2">
+                  {statusDistribution.map((entry, index) => (
+                    <div key={entry.name} className="flex items-center justify-between rounded-md bg-secondary px-3 py-2 text-sm">
+                      <span className="flex items-center gap-2">
+                        <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: COLORS[index % COLORS.length] }} />
+                        {entry.name}
+                      </span>
+                      <span className="font-semibold">{entry.value}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
             ) : (
               <div className="h-80 flex items-center justify-center text-muted-foreground">
                 No data available

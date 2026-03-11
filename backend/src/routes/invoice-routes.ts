@@ -4,6 +4,7 @@ import { v4 as uuid } from "uuid";
 import { invoicesCollection } from "../db.js";
 import { requireAuth } from "../middleware/auth-middleware.js";
 import type { InvoiceRecord } from "../types.js";
+import { renderPdfBuffer } from "../utils/pdf.js";
 
 const invoiceItemSchema = z.object({
   description: z.string(),
@@ -133,22 +134,102 @@ invoiceRouter.get("/:id/export/pdf", async (req, res) => {
     return;
   }
 
-  const lines = [
-    `Invoice #${invoice.invoiceNumber}`,
-    `Vendor: ${invoice.vendorName}`,
-    `Invoice Date: ${invoice.invoiceDate}`,
-    `Due Date: ${invoice.dueDate}`,
-    `Total: ${invoice.totalAmount}`,
-    `GST: ${invoice.gstAmount}`,
-    "",
-    "Items:",
-    ...invoice.items.map((item) => `${item.description} | qty=${item.quantity} | total=${item.total}`),
-  ];
+  const content = await renderPdfBuffer((doc) => {
+    const startX = doc.page.margins.left;
+    const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
 
-  const content = lines.join("\n");
+    const money = (value: number) => `INR ${value.toFixed(2)}`;
+
+    doc
+      .save()
+      .rect(startX, 40, pageWidth, 68)
+      .fill('#EEF2FF')
+      .restore();
+
+    doc.fillColor('#1E3A8A').fontSize(22).text('InvoiceSnap', startX + 16, 58);
+    doc.fillColor('#334155').fontSize(12).text(`Invoice #${invoice.invoiceNumber}`, startX + 16, 84);
+
+    doc.fillColor('#111827').fontSize(11).text(`Generated: ${new Date().toLocaleDateString('en-IN')}`, startX + pageWidth - 180, 62, { align: 'right', width: 160 });
+    doc.fontSize(11).text(`Status: ${invoice.status.toUpperCase()}`, startX + pageWidth - 180, 80, { align: 'right', width: 160 });
+
+    let cursorY = 132;
+
+    doc.fontSize(13).fillColor('#111827').text('Vendor Details', startX, cursorY);
+    cursorY += 22;
+    doc.fontSize(11).fillColor('#374151').text(`Name: ${invoice.vendorName || 'N/A'}`, startX, cursorY);
+    cursorY += 16;
+    doc.text(`GSTIN: ${invoice.vendorGSTIN || 'N/A'}`, startX, cursorY);
+
+    doc.text(`Invoice Date: ${invoice.invoiceDate || 'N/A'}`, startX + 280, cursorY - 16);
+    doc.text(`Due Date: ${invoice.dueDate || 'Not provided'}`, startX + 280, cursorY);
+
+    cursorY += 28;
+    doc
+      .save()
+      .roundedRect(startX, cursorY, pageWidth, 56, 6)
+      .fill('#F8FAFC')
+      .restore();
+
+    doc.fillColor('#111827').fontSize(11).text('Subtotal', startX + 16, cursorY + 12);
+    doc.text(money(invoice.totalAmount - invoice.gstAmount), startX + 16, cursorY + 28);
+
+    doc.text('GST', startX + 240, cursorY + 12);
+    doc.text(money(invoice.gstAmount), startX + 240, cursorY + 28);
+
+    doc.font('Helvetica-Bold').text('Total', startX + 420, cursorY + 12);
+    doc.text(money(invoice.totalAmount), startX + 420, cursorY + 28);
+    doc.font('Helvetica');
+
+    cursorY += 82;
+    doc.fontSize(13).fillColor('#111827').text('Items', startX, cursorY);
+    cursorY += 18;
+
+    doc
+      .save()
+      .rect(startX, cursorY, pageWidth, 22)
+      .fill('#E2E8F0')
+      .restore();
+    doc.fillColor('#1F2937').fontSize(10);
+    doc.text('Description', startX + 8, cursorY + 6, { width: 210 });
+    doc.text('Qty', startX + 228, cursorY + 6, { width: 40, align: 'center' });
+    doc.text('Unit Price', startX + 272, cursorY + 6, { width: 100, align: 'right' });
+    doc.text('GST %', startX + 378, cursorY + 6, { width: 60, align: 'right' });
+    doc.text('Total', startX + 444, cursorY + 6, { width: 90, align: 'right' });
+
+    cursorY += 24;
+
+    for (const item of invoice.items) {
+      doc
+        .save()
+        .rect(startX, cursorY, pageWidth, 22)
+        .fill('#FFFFFF')
+        .restore();
+
+      doc.fillColor('#374151').fontSize(10);
+      doc.text(item.description, startX + 8, cursorY + 6, { width: 210, ellipsis: true });
+      doc.text(String(item.quantity), startX + 228, cursorY + 6, { width: 40, align: 'center' });
+      doc.text(money(item.unitPrice), startX + 272, cursorY + 6, { width: 100, align: 'right' });
+      doc.text(`${item.gstRate.toFixed(2)}%`, startX + 378, cursorY + 6, { width: 60, align: 'right' });
+      doc.text(money(item.total), startX + 444, cursorY + 6, { width: 90, align: 'right' });
+      cursorY += 24;
+    }
+
+    if (invoice.notes) {
+      cursorY += 8;
+      doc.fontSize(12).fillColor('#111827').text('Notes', startX, cursorY);
+      cursorY += 16;
+      doc
+        .save()
+        .roundedRect(startX, cursorY, pageWidth, 42, 6)
+        .fill('#F8FAFC')
+        .restore();
+      doc.fontSize(10).fillColor('#374151').text(invoice.notes, startX + 10, cursorY + 10, { width: pageWidth - 20 });
+    }
+  });
+
   res.setHeader("Content-Type", "application/pdf");
   res.setHeader("Content-Disposition", `attachment; filename=invoice-${invoice.invoiceNumber}.pdf`);
-  res.send(Buffer.from(content, "utf8"));
+  res.send(content);
 });
 
 invoiceRouter.get("/:id/export/excel", async (req, res) => {

@@ -44,4 +44,5 @@ export interface AuthResponseUser {
   email: string;
   name: string;
   company?: string;
+  createdAt: string;
 }

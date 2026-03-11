@@ -79,6 +79,10 @@ export default function GSTReportsPage() {
     year: 'numeric',
   })
 
+  const handlePrint = () => {
+    window.print()
+  }
+
   return (
     <ProtectedLayout>
       <div className="p-8">
@@ -233,7 +237,7 @@ export default function GSTReportsPage() {
         <div className="mt-8 flex gap-4">
           <Button onClick={() => void handleExport('pdf')}>Download GST Report (PDF)</Button>
           <Button variant="outline" onClick={() => void handleExport('excel')}>Export to Excel</Button>
-          <Button variant="outline">Print Report</Button>
+          <Button variant="outline" onClick={handlePrint}>Print Report</Button>
         </div>
       </div>
     </ProtectedLayout>

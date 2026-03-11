@@ -3,6 +3,7 @@ export interface User {
   email: string;
   name: string;
   company?: string;
+  createdAt: string;
 }
 
 export interface InvoiceItem {

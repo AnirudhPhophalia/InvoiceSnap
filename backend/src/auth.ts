@@ -23,5 +23,6 @@ export function publicUser(user: UserRecord): AuthResponseUser {
     email: user.email,
     name: user.name,
     company: user.company,
+    createdAt: user.createdAt,
   };
 }
