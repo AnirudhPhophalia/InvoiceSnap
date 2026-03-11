@@ -6,6 +6,7 @@ import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { downloadFile, getGstReport } from '@/lib/api'
 import type { Invoice } from '@/lib/types'
+import { formatDateOnly } from '@/lib/utils'
 
 export default function GSTReportsPage() {
   const [selectedMonth, setSelectedMonth] = useState(
@@ -212,7 +213,7 @@ export default function GSTReportsPage() {
                     <div>
                       <p className="font-medium">{inv.vendorName || inv.fileName}</p>
                       <p className="text-sm text-muted-foreground">
-                        Invoice #{inv.invoiceNumber} • {new Date(inv.invoiceDate).toLocaleDateString()}
+                        Invoice #{inv.invoiceNumber} • {formatDateOnly(inv.invoiceDate)}
                       </p>
                     </div>
                     <div className="text-right">

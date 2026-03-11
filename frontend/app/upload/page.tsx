@@ -57,10 +57,10 @@ export default function UploadPage() {
   const processFile = (file: File) => {
     setError('')
     setFileName(file.name)
-    void simulateExtraction(file)
+    void runExtraction(file)
   }
 
-  const simulateExtraction = async (file: File) => {
+  const runExtraction = async (file: File) => {
     setExtracting(true)
     setStep('extract')
 

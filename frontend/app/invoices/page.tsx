@@ -6,6 +6,7 @@ import { useInvoices } from '@/context/invoice-context'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { formatDateOnly } from '@/lib/utils'
 import Link from 'next/link'
 
 export default function InvoicesPage() {
@@ -127,7 +128,7 @@ export default function InvoicesPage() {
                         {invoice.vendorName || invoice.fileName}
                       </h3>
                       <p className="text-sm text-muted-foreground">
-                        Invoice #{invoice.invoiceNumber || 'N/A'} • {new Date(invoice.invoiceDate).toLocaleDateString()}
+                        Invoice #{invoice.invoiceNumber || 'N/A'} • {formatDateOnly(invoice.invoiceDate)}
                       </p>
                     </Link>
                   </div>

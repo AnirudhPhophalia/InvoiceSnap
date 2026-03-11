@@ -2,3 +2,5 @@ node_modules/
 dist/
 .env
 data/db.json
+eng.traineddata
+.cache/

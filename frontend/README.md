@@ -101,7 +101,7 @@ Or create a new account with any email and password (minimum 6 characters).
 
 ### Upload Invoice (`/upload`)
 - Drag-and-drop invoice upload
-- Simulated AI extraction (extracts sample data)
+- OCR-backed extraction for images and text-based PDFs
 - Editable form fields for extracted data
 - Instant invoice creation
 
@@ -132,10 +132,10 @@ Or create a new account with any email and password (minimum 6 characters).
 ## Features in Detail
 
 ### AI Invoice Extraction
-The upload page simulates AI extraction by:
+The upload page extracts invoice data by:
 1. Accepting invoice uploads (drag-drop or file select)
-2. Simulating API call to AI service (2-second delay)
-3. Pre-populating form with sample extracted data
+2. Sending the file to the backend extraction endpoint
+3. Pre-populating the form with OCR- and text-derived fields
 4. Allowing user to review and edit fields
 5. Saving invoice via backend API
 
@@ -238,5 +238,5 @@ For support or feature requests, please visit the Settings page or contact suppo
 
 - This is a demo/prototype implementation
 - Data is stored by the backend in MongoDB
-- AI extraction is simulated with sample data
-- For production, integrate with real AI services
+- OCR quality depends on invoice image clarity and PDF text availability
+- Users should review extracted values before saving

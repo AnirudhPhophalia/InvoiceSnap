@@ -1,3 +1,5 @@
+import { formatDateOnly } from '@/lib/utils'
+
 // Format currency in Indian format
 export function formatCurrency(amount: number): string {
   return new Intl.NumberFormat('en-IN', {
@@ -10,11 +12,7 @@ export function formatCurrency(amount: number): string {
 
 // Format date
 export function formatDate(dateString: string): string {
-  return new Date(dateString).toLocaleDateString('en-IN', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  })
+  return formatDateOnly(dateString, 'en-IN')
 }
 
 // Format month name

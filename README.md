@@ -9,7 +9,7 @@ InvoiceSnap is a full-stack invoice management platform for uploading invoices, 
 - Invoice exports: CSV and PDF-like downloadable output endpoints
 - GST reports: month-wise report and export endpoints
 - Analytics: summary, trends, status distribution, top vendors
-- AI extraction simulation endpoint for uploaded invoice files
+- OCR/text-based extraction endpoint for uploaded invoice files
 - Cookie-based auth session support for frontend/backend deployment
 
 ## Tech Stack
@@ -218,7 +218,7 @@ Other routes:
 
 ## Future Improvements
 
-- Integrate real OCR/AI extraction provider
+- Improve OCR heuristics and add richer line-item extraction
 - Add role-based access control and audit logs
 - Add automated tests and CI pipelines
 - Add object storage for uploaded documents

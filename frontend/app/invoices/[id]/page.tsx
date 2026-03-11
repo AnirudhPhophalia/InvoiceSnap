@@ -8,6 +8,7 @@ import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
 import { downloadFile } from '@/lib/api'
+import { formatDateOnly } from '@/lib/utils'
 
 export default function InvoiceDetailPage() {
   const { id } = useParams()
@@ -116,12 +117,12 @@ export default function InvoiceDetailPage() {
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground uppercase">Invoice Date</p>
-                  <p className="font-semibold">{new Date(invoice.invoiceDate).toLocaleDateString()}</p>
+                  <p className="font-semibold">{formatDateOnly(invoice.invoiceDate)}</p>
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground uppercase">Due Date</p>
                   <p className="font-semibold">
-                    {new Date(invoice.dueDate).toLocaleDateString()}
+                    {invoice.dueDate ? formatDateOnly(invoice.dueDate) : 'Not provided'}
                   </p>
                 </div>
                 <div>
