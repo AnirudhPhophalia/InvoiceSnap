@@ -54,65 +54,134 @@ gstRouter.get("/:month/export/pdf", async (req, res) => {
   const report = buildGstReport(invoices, month);
 
   const content = await renderPdfBuffer((doc) => {
-    const startX = doc.page.margins.left;
-    const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+    const PW = doc.page.width;
+    const ML = doc.page.margins.left;
+    const MR = doc.page.margins.right;
+    const contentW = PW - ML - MR;
+    const rightX = ML + contentW;
+
     const money = (value: number) => `INR ${value.toFixed(2)}`;
 
-    doc
-      .save()
-      .rect(startX, 40, pageWidth, 68)
-      .fill('#ECFDF5')
-      .restore();
+    const BRAND = '#4F46E5';
+    const BRAND_LT = '#EEF2FF';
+    const WHITE = '#FFFFFF';
+    const GRAY_50 = '#F9FAFB';
+    const GRAY_200 = '#E5E7EB';
+    const GRAY_600 = '#4B5563';
+    const GRAY_700 = '#374151';
+    const GRAY_800 = '#1F2937';
+    const GRAY_900 = '#111827';
 
-    doc.fillColor('#065F46').fontSize(22).text('GST Report', startX + 16, 58);
-    doc.fillColor('#374151').fontSize(12).text(`Period: ${month}`, startX + 16, 84);
-    doc.fontSize(11).text(`Generated: ${new Date().toLocaleDateString('en-IN')}`, startX + pageWidth - 180, 72, { align: 'right', width: 160 });
+    doc.rect(0, 0, PW, 88).fill(BRAND);
+    doc.font('Helvetica-Bold').fontSize(24).fillColor(WHITE)
+      .text('InvoiceSnap', ML, 22);
+    doc.font('Helvetica').fontSize(10).fillColor('#C7D2FE')
+      .text('GST Intelligence Summary', ML, 52);
+    doc.font('Helvetica-Bold').fontSize(31).fillColor('#E0E7FF')
+      .text('GST REPORT', ML, 16, { align: 'right', width: contentW });
+    doc.font('Helvetica').fontSize(11).fillColor('#C7D2FE')
+      .text(`Period: ${month}`, ML, 54, { align: 'right', width: contentW });
 
-    let cursorY = 132;
+    let y = 108;
+    doc.font('Helvetica').fontSize(9).fillColor(GRAY_600)
+      .text('GENERATED ON', ML, y, { characterSpacing: 1 });
+    doc.font('Helvetica-Bold').fontSize(11).fillColor(GRAY_800)
+      .text(new Date().toLocaleDateString('en-IN'), ML + 90, y - 1);
+    y += 20;
 
-    doc
-      .save()
-      .roundedRect(startX, cursorY, pageWidth, 56, 6)
-      .fill('#F8FAFC')
-      .restore();
+    const summaryH = 60;
+    const c2 = ML + contentW * 0.34;
+    const c3 = ML + contentW * 0.68;
+    doc.save().roundedRect(ML, y, contentW, summaryH, 8).fill(GRAY_50).restore();
+    doc.save().roundedRect(ML, y, 4, summaryH, 2).fill(BRAND).restore();
+    doc.save().roundedRect(c3 - 4, y, rightX - c3 + 4, summaryH, 8).fill(BRAND).restore();
+    doc.save().rect(c3 - 4, y, 16, summaryH).fill(BRAND).restore();
 
-    doc.fillColor('#111827').fontSize(11).text('Invoices', startX + 16, cursorY + 12);
-    doc.text(String(report.invoices.length), startX + 16, cursorY + 28);
-    doc.text('Taxable Value', startX + 220, cursorY + 12);
-    doc.text(money(report.totalTaxableValue), startX + 220, cursorY + 28);
-    doc.font('Helvetica-Bold').text('Total GST', startX + 420, cursorY + 12);
-    doc.text(money(report.totalGST), startX + 420, cursorY + 28);
-    doc.font('Helvetica');
+    doc.font('Helvetica').fontSize(8).fillColor(GRAY_600)
+      .text('INVOICES', ML + 14, y + 11, { characterSpacing: 0.8 });
+    doc.font('Helvetica-Bold').fontSize(15).fillColor(GRAY_900)
+      .text(String(report.invoices.length), ML + 14, y + 29);
 
-    cursorY += 84;
-    doc.fontSize(13).fillColor('#111827').text('GST Breakdown', startX, cursorY);
-    cursorY += 18;
+    doc.font('Helvetica').fontSize(8).fillColor(GRAY_600)
+      .text('TAXABLE VALUE', c2, y + 11, { characterSpacing: 0.8 });
+    doc.font('Helvetica-Bold').fontSize(15).fillColor(GRAY_900)
+      .text(money(report.totalTaxableValue), c2, y + 29);
 
-    doc
-      .save()
-      .rect(startX, cursorY, pageWidth, 22)
-      .fill('#E2E8F0')
-      .restore();
+    doc.font('Helvetica').fontSize(8).fillColor('#C7D2FE')
+      .text('TOTAL GST', c3 + 6, y + 11, { characterSpacing: 0.8 });
+    doc.font('Helvetica-Bold').fontSize(16).fillColor(WHITE)
+      .text(money(report.totalGST), c3 + 6, y + 29, { width: rightX - c3 - 12 });
 
-    doc.fillColor('#1F2937').fontSize(10);
-    doc.text('GST Rate', startX + 10, cursorY + 6, { width: 100 });
-    doc.text('Invoice Count', startX + 180, cursorY + 6, { width: 120, align: 'right' });
-    doc.text('GST Amount', startX + 360, cursorY + 6, { width: 170, align: 'right' });
-    cursorY += 24;
+    y += summaryH + 24;
+    doc.font('Helvetica-Bold').fontSize(11).fillColor(GRAY_900)
+      .text('GST Breakdown', ML, y);
+    y += 14;
 
-    for (const row of report.gstBreakdown) {
-      doc
-        .save()
-        .rect(startX, cursorY, pageWidth, 22)
-        .fill('#FFFFFF')
-        .restore();
+    const tableRowH = 26;
+    const C = {
+      rate: { x: ML, w: 130 },
+      count: { x: ML + 130, w: 170 },
+      amount: { x: ML + 300, w: contentW - 300 },
+    };
 
-      doc.fillColor('#374151').fontSize(10);
-      doc.text(`${row.rate}%`, startX + 10, cursorY + 6, { width: 100 });
-      doc.text(String(row.invoiceCount), startX + 180, cursorY + 6, { width: 120, align: 'right' });
-      doc.text(money(row.amount), startX + 360, cursorY + 6, { width: 170, align: 'right' });
-      cursorY += 24;
+    doc.save().rect(ML, y, contentW, tableRowH).fill(GRAY_800).restore();
+    doc.font('Helvetica-Bold').fontSize(8.5).fillColor(WHITE);
+    doc.text('GST RATE', C.rate.x + 8, y + 9, { width: C.rate.w - 12 });
+    doc.text('INVOICE COUNT', C.count.x + 8, y + 9, { width: C.count.w - 16, align: 'center' });
+    doc.text('GST AMOUNT', C.amount.x + 8, y + 9, { width: C.amount.w - 14, align: 'right' });
+    y += tableRowH;
+
+    if (report.gstBreakdown.length === 0) {
+      doc.save().rect(ML, y, contentW, tableRowH).fill(WHITE).restore();
+      doc.font('Helvetica').fontSize(9.5).fillColor(GRAY_600)
+        .text('No GST data for this period.', ML + 8, y + 8, { width: contentW - 16, align: 'center' });
+      y += tableRowH;
+    } else {
+      report.gstBreakdown.forEach((row, index) => {
+        const bg = index % 2 === 0 ? WHITE : GRAY_50;
+        doc.save().rect(ML, y, contentW, tableRowH).fill(bg).restore();
+        doc.save().moveTo(ML, y + tableRowH).lineTo(rightX, y + tableRowH)
+          .lineWidth(0.4).strokeColor(GRAY_200).stroke().restore();
+
+        doc.font('Helvetica-Bold').fontSize(9.5).fillColor(GRAY_900)
+          .text(`${row.rate}%`, C.rate.x + 8, y + 8, { width: C.rate.w - 12 });
+        doc.font('Helvetica').fontSize(9.5).fillColor(GRAY_700)
+          .text(String(row.invoiceCount), C.count.x + 8, y + 8, { width: C.count.w - 16, align: 'center' });
+        doc.font('Helvetica-Bold').fontSize(9.5).fillColor(GRAY_800)
+          .text(money(row.amount), C.amount.x + 8, y + 8, { width: C.amount.w - 14, align: 'right' });
+        y += tableRowH;
+      });
     }
+
+    y += 10;
+    const totalsW = 210;
+    const totalsX = rightX - totalsW;
+    const totalRows = [
+      { label: 'Taxable Value', value: money(report.totalTaxableValue) },
+      { label: 'Total GST', value: money(report.totalGST), highlight: true },
+    ];
+
+    totalRows.forEach((row) => {
+      if (row.highlight) {
+        doc.save().roundedRect(totalsX - 6, y - 3, totalsW + 6, 24, 4).fill(BRAND_LT).restore();
+      }
+      const color = row.highlight ? BRAND : GRAY_800;
+      doc.font('Helvetica-Bold').fontSize(10).fillColor(color)
+        .text(row.label, totalsX, y, { width: 108 });
+      doc.font('Helvetica-Bold').fontSize(10).fillColor(color)
+        .text(row.value, totalsX + 108, y, { width: totalsW - 108, align: 'right' });
+      y += 21;
+    });
+
+    const footerY = doc.page.height - doc.page.margins.bottom - 32;
+    doc.save().moveTo(ML, footerY).lineTo(rightX, footerY)
+      .lineWidth(0.5).strokeColor(GRAY_200).stroke().restore();
+    doc.font('Helvetica').fontSize(9).fillColor(GRAY_600)
+      .text(
+        `Generated by InvoiceSnap • ${new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}`,
+        ML, footerY + 10,
+        { align: 'center', width: contentW }
+      );
   });
 
   res.setHeader("Content-Type", "application/pdf");
