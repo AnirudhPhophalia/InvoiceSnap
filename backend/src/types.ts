@@ -56,7 +56,9 @@ export interface UserRecord {
   email: string;
   name: string;
   company?: string;
-  passwordHash: string;
+  passwordHash?: string;
+  authProvider?: "local" | "google";
+  googleId?: string;
   createdAt: string;
 }
 

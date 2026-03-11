@@ -7,6 +7,7 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card } from '@/components/ui/card'
+import { requestGoogleIdToken } from '@/lib/google-auth'
 
 export default function SignupPage() {
   const [email, setEmail] = useState('')
@@ -14,8 +15,9 @@ export default function SignupPage() {
   const [name, setName] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  const { signup } = useAuth()
+  const { signup, googleAuth } = useAuth()
   const router = useRouter()
+  const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || ''
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -27,6 +29,21 @@ export default function SignupPage() {
       router.push('/dashboard')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Signup failed')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleGoogleSignIn = async () => {
+    setError('')
+    setLoading(true)
+
+    try {
+      const idToken = await requestGoogleIdToken(googleClientId)
+      await googleAuth(idToken)
+      router.push('/dashboard')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Google sign-in failed')
     } finally {
       setLoading(false)
     }
@@ -108,6 +125,22 @@ export default function SignupPage() {
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? 'Creating account...' : 'Create account'}
             </Button>
+
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full"
+              disabled={loading || !googleClientId}
+              onClick={handleGoogleSignIn}
+            >
+              Continue with Google
+            </Button>
+
+            {!googleClientId && (
+              <p className="text-xs text-muted-foreground text-center">
+                Google sign-in is unavailable until NEXT_PUBLIC_GOOGLE_CLIENT_ID is configured.
+              </p>
+            )}
           </form>
 
           <div className="mt-6 pt-6 border-t border-border">

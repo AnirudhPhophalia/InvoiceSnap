@@ -59,6 +59,13 @@ export async function login(email: string, password: string) {
   });
 }
 
+export async function googleAuth(idToken: string) {
+  return request<{ token: string; user: User }>("/auth/google", {
+    method: "POST",
+    body: JSON.stringify({ idToken }),
+  });
+}
+
 export async function me() {
   return request<{ user: User }>("/auth/me");
 }

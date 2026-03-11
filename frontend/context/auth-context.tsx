@@ -1,13 +1,14 @@
 'use client'
 
 import React, { createContext, useContext, useEffect, useState } from 'react'
-import { clearToken, login as loginApi, logout as logoutApi, me, setToken, signup as signupApi } from '@/lib/api'
+import { clearToken, googleAuth as googleAuthApi, login as loginApi, logout as logoutApi, me, setToken, signup as signupApi } from '@/lib/api'
 import type { User } from '@/lib/types'
 
 interface AuthContextType {
   user: User | null
   loading: boolean
   login: (email: string, password: string) => Promise<void>
+  googleAuth: (idToken: string) => Promise<void>
   signup: (email: string, password: string, name: string) => Promise<void>
   logout: () => Promise<void>
   setUser: React.Dispatch<React.SetStateAction<User | null>>
@@ -42,6 +43,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(response.user)
   }
 
+  const googleAuth = async (idToken: string) => {
+    const response = await googleAuthApi(idToken)
+    setToken(response.token)
+    setUser(response.user)
+  }
+
   const signup = async (email: string, password: string, name: string) => {
     const response = await signupApi(email, password, name)
     setToken(response.token)
@@ -64,6 +71,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         user,
         loading,
         login,
+        googleAuth,
         signup,
         logout,
         setUser,
