@@ -1,82 +1,99 @@
 # InvoiceSnap
 
-InvoiceSnap is a full-stack invoice management platform for uploading invoices, extracting structured data, managing invoice lifecycle, generating GST reports, and visualizing analytics.
+InvoiceSnap is a full-stack AI invoice management system with OCR extraction, anomaly-aware review, GST reporting, and analytics.
 
-## Key Features
+## Features
 
-- Authentication: signup, login, logout, password change, profile fetch
-- Invoice management: create, list, filter, search, update, delete
-- Invoice exports: CSV and PDF-like downloadable output endpoints
-- GST reports: month-wise report and export endpoints
-- Analytics: summary, trends, status distribution, top vendors
-- OCR/text-based extraction endpoint for uploaded invoice files
-- Cookie-based auth session support for frontend/backend deployment
+- Hybrid extraction pipeline: digital PDF text parsing, Gemini extraction, and local OCR fallback
+- Self-Learning Vendor Brain: vendor profiles, anomaly scoring, and explainable risk reasons
+- Human-in-the-loop review flow: confidence + risk driven `needsReview` pipeline
+- Source document intelligence: original invoice storage, inline preview, and download
+- Duplicate detection before save
+- Batch extraction + bulk draft save
+
+## Product Modules
+
+### Authentication & User
+
+- Email/password signup and login
+- Google auth integration
+- Cookie-based auth sessions
+- Profile/settings update and password change
+
+### Invoice Operations
+
+- Create, read, update, delete invoices
+- Server-side filtering, sorting, and pagination
+- Category tagging and editable line items
+- Invoice export to PDF and CSV
+
+### AI Extraction Pipeline
+
+- Upload supports PDF, PNG, JPG, JPEG, WebP
+- `POST /api/extract` for single-file extraction
+- `POST /api/extract/batch` for multi-file extraction
+- Extraction metadata:
+  - `extractionSource`
+  - `extractionConfidence`
+  - `extractionNeedsReview`
+
+### Self-Learning Vendor Brain
+
+- Vendor profile modeling from historical invoices
+- Invoice risk score (`vendorRiskScore`) and explainable reasons (`vendorRiskReasons`)
+- Anomaly signals include:
+  - duplicate invoice number patterns
+  - unusual amount deviation
+  - unseen GST rates
+  - category drift
+- Vendor Brain analytics endpoint: `GET /api/analytics/vendor-brain`
+
+### Review & Quality Controls
+
+- Auto review flagging from extraction confidence and data completeness
+- Additional review escalation from vendor anomaly risk
+- Duplicate detection at invoice create
+
+### Analytics & GST
+
+- Summary, trends, status distribution, top vendors
+- Monthly category analysis
+- Vendor Brain profiles and anomaly feed in analytics UI
+- GST monthly reports with CSV/PDF export
 
 ## Tech Stack
 
 - Frontend: Next.js, React, TypeScript, Tailwind, shadcn/ui
-- Backend: Express, TypeScript, Zod, JWT, Multer
+- Backend: Node.js, Express, TypeScript, Zod, Multer
 - Database: MongoDB
-- Auth transport: HTTP-only cookie (and Bearer fallback support)
+- AI/OCR: Gemini API, pdf-parse, tesseract.js
 
-## Repository Structure
+## Quick Start
 
-```text
-InvoiceSnap/
-   backend/
-      src/
-         middleware/
-         routes/
-         utils/
-         auth.ts
-         config.ts
-         db.ts
-         server.ts
-      .env.example
-      package.json
-   frontend/
-      app/
-      components/
-      context/
-      lib/
-      .env.example
-      package.json
-   LICENSE
-   CONTRIBUTING.md
-   CODE_OF_CONDUCT.md
-   SECURITY.md
-   SUPPORT.md
-   README.md
+### Prerequisites
+
+- Node.js 18+
+- MongoDB
+
+### Backend
+
+```bash
+cd backend
+npm install
+npm run dev
 ```
 
-## Project Governance Files
+### Frontend
 
-- License: `LICENSE`
-- Contributing guide: `CONTRIBUTING.md`
-- Code of Conduct: `CODE_OF_CONDUCT.md`
-- Security policy: `SECURITY.md`
-- Support guide: `SUPPORT.md`
-
-## Architecture Overview
-
-Frontend:
-- Calls backend REST APIs using `NEXT_PUBLIC_API_BASE_URL`
-- Sends credentials with `fetch(..., { credentials: "include" })`
-- Does not store auth token in `localStorage`
-
-Backend:
-- Exposes API routes under `/api/*`
-- Connects to MongoDB on startup
-- Uses collections:
-   - `users`
-   - `invoices`
-- Sets/reads auth cookie for session-like behavior
+```bash
+cd frontend
+npm install
+npm run dev
+```
 
 ## Environment Variables
 
-Both `.env` files are already created from `.env.example`.
-
-Backend (`backend/.env`):
+### backend/.env
 
 ```env
 PORT=4000
@@ -91,149 +108,26 @@ GEMINI_API_KEY=your_gemini_api_key
 GEMINI_MODEL=gemini-2.0-flash
 ```
 
-Frontend (`frontend/.env`):
+### frontend/.env
 
 ```env
 NEXT_PUBLIC_API_BASE_URL=http://localhost:4000/api
 NEXT_PUBLIC_GOOGLE_CLIENT_ID=your_google_client_id
 ```
 
-## Local Development
+## Useful Scripts
 
-Prerequisites:
-- Node.js 18+
-- MongoDB running locally or accessible remotely
+### Backend
 
-### 1. Run backend
+- `npm run dev`
+- `npm run lint`
+- `npm test`
 
-```bash
-cd backend
-npm install
-npm run dev
-```
+### Frontend
 
-Backend default URL: `http://localhost:4000`
-
-### 2. Run frontend
-
-Use either npm or pnpm:
-
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-or
-
-```bash
-cd frontend
-pnpm install
-pnpm dev
-```
-
-Frontend default URL: `http://localhost:3000`
-
-## Available Scripts
-
-Backend (`backend/package.json`):
-- `npm run dev` - Start backend in watch mode
-- `npm run build` - Compile TypeScript to `dist/`
-- `npm start` - Run compiled backend
-- `npm run lint` - Type-check (`tsc --noEmit`)
-
-Frontend (from `frontend/package.json`):
-- `npm run dev` / `pnpm dev` - Start Next.js dev server
-- `npm run build` / `pnpm build` - Production build
-- `npm run start` / `pnpm start` - Start production server
-
-## API Overview
-
-Base URL: `http://localhost:4000/api`
-
-Auth routes:
-- `POST /auth/signup`
-- `POST /auth/login`
-- `GET /auth/me`
-- `POST /auth/logout`
-- `POST /auth/logout-all`
-- `PATCH /auth/password`
-
-Invoice routes:
-- `GET /invoices`
-- `POST /invoices`
-- `GET /invoices/:id`
-- `PATCH /invoices/:id`
-- `DELETE /invoices/:id`
-- `GET /invoices/:id/export/pdf`
-- `GET /invoices/:id/export/excel`
-
-Analytics routes:
-- `GET /analytics/summary`
-- `GET /analytics/trends`
-- `GET /analytics/status-distribution`
-- `GET /analytics/top-vendors`
-
-GST routes:
-- `GET /gst-reports/:month`
-- `GET /gst-reports/:month/export/excel`
-- `GET /gst-reports/:month/export/pdf`
-
-Other routes:
-- `GET /settings`
-- `PATCH /settings`
-- `POST /extract`
-- `GET /health` (outside `/api`, at backend root)
-
-## Data and Persistence
-
-- All application data is persisted in MongoDB.
-- The old local JSON database approach has been removed from runtime source code.
-- Frontend does not persist auth token in local storage.
-
-## Deployment Notes
-
-1. Deploy backend with environment variables from `backend/.env`.
-2. Deploy frontend with `NEXT_PUBLIC_API_BASE_URL` pointing to deployed backend API.
-3. Ensure CORS is set correctly (`CORS_ORIGIN` on backend).
-4. For cross-site frontend/backend domains, typically use:
-    - `AUTH_COOKIE_SAME_SITE=none`
-    - `NODE_ENV=production` (secure cookies)
-5. Use a managed MongoDB URI in production.
-
-## Troubleshooting
-
-- Backend fails to start:
-   - Check `MONGODB_URI` and MongoDB network access.
-   - Check `JWT_SECRET` is set.
-- Login succeeds but protected APIs fail:
-   - Confirm frontend sends credentials (`credentials: include` already configured).
-   - Verify `CORS_ORIGIN` exactly matches frontend origin.
-   - Verify cookie `sameSite`/`secure` settings for your deployment topology.
-- Frontend cannot reach backend:
-   - Verify `NEXT_PUBLIC_API_BASE_URL` and backend port/domain.
-
-## Security Notes
-
-- Keep `JWT_SECRET` long and private.
-- Use HTTPS in production.
-- Use restrictive CORS values (avoid wildcard for credentialed requests).
-- Rotate secrets periodically.
-
-## Future Improvements
-
-- Improve OCR heuristics and add richer line-item extraction
-- Add role-based access control and audit logs
-- Add automated tests and CI pipelines
-- Add object storage for uploaded documents
-
-## Invoice Extraction Strategy
-
-- Digital PDFs use local text extraction with `pdf-parse`
-- Images and scanned PDFs can use Gemini for structured extraction when `GEMINI_API_KEY` is set
-- Gemini results are normalized locally with GSTIN, date, amount, and item validation
-- If Gemini fails or quota is exhausted, the backend falls back to the existing local extraction path
+- `npm run dev`
+- `npm run build`
 
 ## License
 
-This project is licensed under the MIT License. See `LICENSE`.
+MIT

@@ -9,7 +9,9 @@ import {
   getAnalyticsSummary,
   getAnalyticsTopVendors,
   getAnalyticsTrends,
+  getAnalyticsVendorBrain,
 } from '@/lib/api'
+import Link from 'next/link'
 import {
   LineChart,
   Line,
@@ -32,6 +34,25 @@ export default function AnalyticsPage() {
   const [statusDistribution, setStatusDistribution] = useState<Array<{ name: string; value: number }>>([])
   const [topVendors, setTopVendors] = useState<Array<{ name: string; amount: number }>>([])
   const [monthlyCategoryRows, setMonthlyCategoryRows] = useState<Array<{ month: string; categories: Array<{ category: string; amount: number }>; totalAmount: number }>>([])
+  const [vendorProfiles, setVendorProfiles] = useState<Array<{
+    vendorName: string
+    vendorGSTIN: string
+    invoiceCount: number
+    averageAmount: number
+    amountStdDev: number
+    commonGstRates: number[]
+    topCategories: Array<{ category: string; count: number }>
+    lastInvoiceDate: string
+  }>>([])
+  const [highRiskInvoices, setHighRiskInvoices] = useState<Array<{
+    id: string
+    vendorName: string
+    invoiceNumber: string
+    invoiceDate: string
+    totalAmount: number
+    riskScore: number
+    riskReasons: string[]
+  }>>([])
   const [stats, setStats] = useState({
     totalAmount: 0,
     totalGST: 0,
@@ -46,12 +67,13 @@ export default function AnalyticsPage() {
       setError('')
 
       try {
-        const [summary, trends, distribution, vendors, monthlyCategories] = await Promise.all([
+        const [summary, trends, distribution, vendors, monthlyCategories, vendorBrain] = await Promise.all([
           getAnalyticsSummary(),
           getAnalyticsTrends(),
           getAnalyticsStatusDistribution(),
           getAnalyticsTopVendors(),
           getAnalyticsMonthlyCategories(),
+          getAnalyticsVendorBrain(),
         ])
 
         setStats({
@@ -65,6 +87,8 @@ export default function AnalyticsPage() {
         setStatusDistribution(distribution.distribution)
         setTopVendors(vendors.vendors)
         setMonthlyCategoryRows(monthlyCategories.rows)
+        setVendorProfiles(vendorBrain.profiles)
+        setHighRiskInvoices(vendorBrain.highRiskInvoices)
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load analytics')
       } finally {
@@ -242,6 +266,47 @@ export default function AnalyticsPage() {
             </div>
           )}
         </Card>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+          <Card className="p-6">
+            <h3 className="text-lg font-semibold mb-4">Vendor Brain Profiles</h3>
+            {vendorProfiles.length === 0 ? (
+              <div className="text-muted-foreground">No vendor profiles yet</div>
+            ) : (
+              <div className="space-y-3">
+                {vendorProfiles.map((profile) => (
+                  <div key={`${profile.vendorGSTIN}-${profile.vendorName}`} className="rounded-lg border border-border p-3">
+                    <p className="font-medium">{profile.vendorName || 'Unknown Vendor'}</p>
+                    <p className="text-sm text-muted-foreground">Invoices: {profile.invoiceCount} • Avg: ₹{profile.averageAmount.toFixed(2)}</p>
+                    <p className="text-xs text-muted-foreground mt-1">GST patterns: {profile.commonGstRates.length > 0 ? profile.commonGstRates.map((rate) => `${rate}%`).join(', ') : 'N/A'}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+
+          <Card className="p-6">
+            <h3 className="text-lg font-semibold mb-4">Vendor Brain Anomalies</h3>
+            {highRiskInvoices.length === 0 ? (
+              <div className="text-muted-foreground">No high-risk anomalies detected</div>
+            ) : (
+              <div className="space-y-3">
+                {highRiskInvoices.map((row) => (
+                  <Link key={row.id} href={`/invoices/${row.id}`} className="block rounded-lg border border-border p-3 hover:bg-secondary transition-colors">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <p className="font-medium">{row.vendorName || 'Unknown Vendor'}</p>
+                        <p className="text-sm text-muted-foreground">#{row.invoiceNumber || 'N/A'} • ₹{row.totalAmount.toFixed(2)}</p>
+                        <p className="text-xs text-muted-foreground mt-1">{row.riskReasons[0] || 'Pattern mismatch detected'}</p>
+                      </div>
+                      <span className="rounded-full bg-amber-100 px-2 py-1 text-xs text-amber-700">Risk {row.riskScore}</span>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </Card>
+        </div>
       </div>
     </ProtectedLayout>
   )

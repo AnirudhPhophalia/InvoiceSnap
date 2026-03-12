@@ -44,6 +44,8 @@ export interface Invoice {
   extractionSource?: string;
   extractionConfidence?: number;
   extractionNeedsReview?: boolean;
+  vendorRiskScore?: number;
+  vendorRiskReasons?: string[];
   items: InvoiceItem[];
   notes: string;
   uploadedAt: string;
@@ -65,6 +67,8 @@ export interface InvoiceInput {
   extractionSource?: string;
   extractionConfidence?: number;
   extractionNeedsReview?: boolean;
+  vendorRiskScore?: number;
+  vendorRiskReasons?: string[];
   items: InvoiceItem[];
   notes: string;
   status: InvoiceStatus;

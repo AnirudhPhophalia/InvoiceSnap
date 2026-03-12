@@ -8,6 +8,7 @@ import { suggestExpenseCategory, suggestItemCategory } from "../utils/categorize
 import { learnFromCorrections } from "../utils/corrections.js";
 import { isLikelyDuplicate, normalizeConfidence, shouldFlagForReview } from "../utils/invoice-quality.js";
 import { renderPdfBuffer } from "../utils/pdf.js";
+import { assessInvoiceWithVendorBrain } from "../utils/vendor-brain.js";
 
 const invoiceItemSchema = z.object({
   description: z.string(),
@@ -192,6 +193,19 @@ invoiceRouter.post("/", async (req, res) => {
     extractionConfidence,
   });
 
+  const vendorAssessment = assessInvoiceWithVendorBrain(
+    {
+      vendorName: parsed.data.vendorName,
+      vendorGSTIN: parsed.data.vendorGSTIN,
+      invoiceNumber: parsed.data.invoiceNumber,
+      invoiceDate: parsed.data.invoiceDate,
+      totalAmount: parsed.data.totalAmount,
+      category,
+      items,
+    },
+    userInvoiceHistory,
+  );
+
   const newInvoice: InvoiceRecord = {
     id: uuid(),
     userId: req.user!.id,
@@ -199,7 +213,9 @@ invoiceRouter.post("/", async (req, res) => {
     items,
     category,
     extractionConfidence,
-    extractionNeedsReview,
+    extractionNeedsReview: extractionNeedsReview || vendorAssessment.riskScore >= 45,
+    vendorRiskScore: vendorAssessment.riskScore,
+    vendorRiskReasons: vendorAssessment.riskReasons,
     uploadedAt: new Date().toISOString(),
   };
 
@@ -307,6 +323,27 @@ invoiceRouter.patch("/:id", async (req, res) => {
       items: candidateItems,
       extractionConfidence: candidateConfidence,
     });
+
+    const vendorHistory = await invoicesStore
+      .find({ userId: req.user!.id, id: { $ne: target.id } })
+      .sort({ uploadedAt: -1 })
+      .limit(300)
+      .toArray();
+    const vendorAssessment = assessInvoiceWithVendorBrain(
+      {
+        vendorName: updates.vendorName ?? target.vendorName,
+        vendorGSTIN: updates.vendorGSTIN ?? target.vendorGSTIN,
+        invoiceNumber: updates.invoiceNumber ?? target.invoiceNumber,
+        invoiceDate: updates.invoiceDate ?? target.invoiceDate,
+        totalAmount: updates.totalAmount ?? target.totalAmount,
+        category: updates.category ?? target.category,
+        items: candidateItems,
+      },
+      vendorHistory,
+    );
+    updates.vendorRiskScore = vendorAssessment.riskScore;
+    updates.vendorRiskReasons = vendorAssessment.riskReasons;
+    updates.extractionNeedsReview = Boolean(updates.extractionNeedsReview) || vendorAssessment.riskScore >= 45;
   }
 
   await learnFromCorrections(req.user!.id, target, updates);

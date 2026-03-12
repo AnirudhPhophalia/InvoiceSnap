@@ -8,6 +8,7 @@ import {
   buildSummary,
   buildTopVendors,
 } from "../utils/analytics.js";
+import { buildVendorBrainSnapshot } from "../utils/vendor-brain.js";
 
 export const analyticsRouter = Router();
 
@@ -41,4 +42,10 @@ analyticsRouter.get("/monthly-categories", async (req, res) => {
   const invoices = await invoicesCollection().find({ userId: req.user!.id }).toArray();
 
   res.json({ rows: buildMonthlyCategorySummary(invoices) });
+});
+
+analyticsRouter.get("/vendor-brain", async (req, res) => {
+  const invoices = await invoicesCollection().find({ userId: req.user!.id }).toArray();
+
+  res.json(buildVendorBrainSnapshot(invoices));
 });

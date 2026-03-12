@@ -37,6 +37,8 @@ export interface InvoiceRecord {
   extractionSource?: string;
   extractionConfidence?: number;
   extractionNeedsReview?: boolean;
+  vendorRiskScore?: number;
+  vendorRiskReasons?: string[];
   items: InvoiceItem[];
   notes: string;
   uploadedAt: string;

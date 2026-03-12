@@ -213,6 +213,30 @@ export async function getAnalyticsMonthlyCategories() {
   }>("/analytics/monthly-categories");
 }
 
+export async function getAnalyticsVendorBrain() {
+  return request<{
+    profiles: Array<{
+      vendorName: string;
+      vendorGSTIN: string;
+      invoiceCount: number;
+      averageAmount: number;
+      amountStdDev: number;
+      commonGstRates: number[];
+      topCategories: Array<{ category: string; count: number }>;
+      lastInvoiceDate: string;
+    }>;
+    highRiskInvoices: Array<{
+      id: string;
+      vendorName: string;
+      invoiceNumber: string;
+      invoiceDate: string;
+      totalAmount: number;
+      riskScore: number;
+      riskReasons: string[];
+    }>;
+  }>("/analytics/vendor-brain");
+}
+
 export async function getGstReport(month: string) {
   return request<{
     month: string;

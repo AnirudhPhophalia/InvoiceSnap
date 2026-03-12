@@ -242,6 +242,11 @@ export default function InvoicesPage() {
                           Needs Review
                         </p>
                       )}
+                      {typeof invoice.vendorRiskScore === 'number' && invoice.vendorRiskScore >= 45 && (
+                        <p className="mt-1 ml-2 inline-block rounded bg-orange-100 px-2 py-0.5 text-xs text-orange-700">
+                          Vendor Risk {invoice.vendorRiskScore}
+                        </p>
+                      )}
                     </Link>
                   </div>
 

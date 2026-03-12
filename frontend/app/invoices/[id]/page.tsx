@@ -212,6 +212,9 @@ export default function InvoiceDetailPage() {
                     {invoice.extractionNeedsReview && (
                       <span className="rounded-full bg-amber-100 px-2 py-1 text-amber-700">Needs Review</span>
                     )}
+                    {typeof invoice.vendorRiskScore === 'number' && (
+                      <span className="rounded-full bg-orange-100 px-2 py-1 text-orange-700">Vendor Risk: {invoice.vendorRiskScore}</span>
+                    )}
                   </div>
                 </div>
                 <div className="text-right">
@@ -340,6 +343,17 @@ export default function InvoiceDetailPage() {
               <div className="p-4 bg-info/5 border border-info/20 rounded-lg">
                 <p className="text-sm text-muted-foreground mb-2">Notes</p>
                 <p className="text-foreground">{invoice.notes}</p>
+              </div>
+            )}
+
+            {invoice.vendorRiskReasons && invoice.vendorRiskReasons.length > 0 && (
+              <div className="mt-4 rounded-lg border border-orange-200 bg-orange-50 p-4">
+                <p className="text-sm font-medium text-orange-800 mb-2">Vendor Brain Reasons</p>
+                <ul className="space-y-1 text-sm text-orange-700">
+                  {invoice.vendorRiskReasons.map((reason, index) => (
+                    <li key={`${reason}-${index}`}>• {reason}</li>
+                  ))}
+                </ul>
               </div>
             )}
           </Card>
