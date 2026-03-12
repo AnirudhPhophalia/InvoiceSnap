@@ -1,5 +1,7 @@
 import { PDFParse } from "pdf-parse";
 import Tesseract from "tesseract.js";
+import { z } from "zod";
+import { config } from "../config.js";
 import type { ExpenseCategory, InvoiceItem } from "../types.js";
 import { suggestItemCategory } from "./categorize.js";
 
@@ -10,6 +12,51 @@ const SUPPORTED_IMAGE_MIME_TYPES = new Set([
   "image/webp",
 ]);
 
+const SUPPORTED_GEMINI_MIME_TYPES = new Set([
+  "application/pdf",
+  ...SUPPORTED_IMAGE_MIME_TYPES,
+]);
+
+const GEMINI_TIMEOUT_MS = 30_000;
+const MIN_DIGITAL_PDF_TEXT_LENGTH = 80;
+
+const CATEGORY_BY_LABEL = new Map<string, ExpenseCategory>([
+  ["software", "Software"],
+  ["travel", "Travel"],
+  ["office", "Office"],
+  ["utilities", "Utilities"],
+  ["marketing", "Marketing"],
+  ["meals", "Meals"],
+  ["professional services", "Professional Services"],
+  ["equipment", "Equipment"],
+  ["rent", "Rent"],
+  ["other", "Other"],
+]);
+
+const AI_ITEM_SCHEMA = z.object({
+  description: z.string().optional(),
+  quantity: z.union([z.number(), z.string()]).optional(),
+  unitPrice: z.union([z.number(), z.string()]).optional(),
+  total: z.union([z.number(), z.string()]).optional(),
+  gstRate: z.union([z.number(), z.string()]).optional(),
+  category: z.string().optional(),
+}).passthrough();
+
+const AI_INVOICE_SCHEMA = z.object({
+  vendorName: z.string().optional(),
+  vendorGSTIN: z.string().optional(),
+  invoiceNumber: z.string().optional(),
+  invoiceDate: z.string().optional(),
+  dueDate: z.string().optional(),
+  totalAmount: z.union([z.number(), z.string()]).optional(),
+  gstAmount: z.union([z.number(), z.string()]).optional(),
+  currencySymbol: z.string().optional(),
+  notes: z.string().optional(),
+  items: z.array(AI_ITEM_SCHEMA).optional(),
+}).passthrough();
+
+type AiInvoice = z.infer<typeof AI_INVOICE_SCHEMA>;
+
 const DATE_PATTERNS = [
   /\b(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})\b/g,
   /\b(\d{4}[/-]\d{1,2}[/-]\d{1,2})\b/g,
@@ -19,6 +66,20 @@ const DATE_PATTERNS = [
 
 const GSTIN_PATTERN = /\b\d{2}[A-Z]{5}\d{4}[A-Z]{1}\d[Z][A-Z0-9]\b/i;
 
+type ExtractedInvoiceDraft = {
+  vendorName: string;
+  vendorGSTIN: string;
+  invoiceNumber: string;
+  invoiceDate: string;
+  dueDate: string;
+  totalAmount: number;
+  gstAmount: number;
+  currencySymbol: string;
+  category: ExpenseCategory;
+  notes: string;
+  items: InvoiceItem[];
+};
+
 function normalizeWhitespace(input: string) {
   return input
     .replace(/\r/g, "\n")
@@ -26,6 +87,10 @@ function normalizeWhitespace(input: string) {
     .replace(/[ ]{2,}/g, " ")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
+}
+
+function roundMoney(value: number) {
+  return Number(value.toFixed(2));
 }
 
 function cleanupVendorName(value: string) {
@@ -61,6 +126,18 @@ function parseAmount(raw: string) {
   }
 
   return Number(cleaned);
+}
+
+function parseUnknownAmount(value: unknown) {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : undefined;
+  }
+
+  if (typeof value === "string") {
+    return parseAmount(value);
+  }
+
+  return undefined;
 }
 
 function formatIsoDate(raw: string) {
@@ -107,6 +184,14 @@ function formatIsoDate(raw: string) {
   const normalized = `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
   const parsed = new Date(normalized);
   return Number.isNaN(parsed.getTime()) ? "" : normalized;
+}
+
+function normalizeDateValue(value: unknown) {
+  if (typeof value !== "string") {
+    return "";
+  }
+
+  return formatIsoDate(value);
 }
 
 function findFirstDate(text: string, labels?: string[], requireLabelMatch = false) {
@@ -158,6 +243,68 @@ function detectCurrencySymbol(text: string) {
   }
 
   return "\u20B9";
+}
+
+function normalizeExpenseCategory(value: unknown, description = "") {
+  if (typeof value === "string") {
+    const category = CATEGORY_BY_LABEL.get(value.toLowerCase().trim());
+    if (category) {
+      return category;
+    }
+  }
+
+  return suggestItemCategory(description);
+}
+
+function normalizeGstin(value: unknown, fallbackText = "") {
+  if (typeof value === "string") {
+    const match = value.toUpperCase().match(GSTIN_PATTERN);
+    if (match?.[0]) {
+      return match[0];
+    }
+  }
+
+  return fallbackText.match(GSTIN_PATTERN)?.[0]?.toUpperCase() || "";
+}
+
+function isMeaningfulPdfText(text: string) {
+  const normalized = normalizeWhitespace(text);
+  if (normalized.length < MIN_DIGITAL_PDF_TEXT_LENGTH) {
+    return false;
+  }
+
+  const alphaNumericCount = (normalized.match(/[A-Za-z0-9]/g) || []).length;
+  const denseLineCount = normalized
+    .split("\n")
+    .filter((line) => line.trim().length >= 5)
+    .length;
+
+  return alphaNumericCount >= 40 && denseLineCount >= 3;
+}
+
+function extractJsonPayload(text: string) {
+  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  const candidates = [fenced?.[1], text]
+    .filter((candidate): candidate is string => Boolean(candidate))
+    .map((candidate) => candidate.trim());
+
+  for (const candidate of candidates) {
+    try {
+      return JSON.parse(candidate);
+    } catch {
+      const start = candidate.indexOf("{");
+      const end = candidate.lastIndexOf("}");
+      if (start >= 0 && end > start) {
+        try {
+          return JSON.parse(candidate.slice(start, end + 1));
+        } catch {
+          continue;
+        }
+      }
+    }
+  }
+
+  throw new Error("Gemini did not return valid JSON.");
 }
 
 function collectAmountsFromLine(line: string) {
@@ -261,6 +408,46 @@ function buildFallbackItem(totalAmount: number, gstAmount: number) {
   };
 }
 
+function normalizeAiItems(items: AiInvoice["items"], totalAmount: number, gstAmount: number) {
+  if (!items || items.length === 0) {
+    return [buildFallbackItem(totalAmount, gstAmount)];
+  }
+
+  const invoiceGstRate = deriveEffectiveGstRate(totalAmount, gstAmount);
+  const normalized: InvoiceItem[] = [];
+
+  for (const item of items) {
+    const description = item.description?.trim() || "";
+    if (!description) {
+      continue;
+    }
+
+    const quantity = parseUnknownAmount(item.quantity) ?? 1;
+    const safeQuantity = quantity > 0 ? quantity : 1;
+    const total = parseUnknownAmount(item.total);
+    const unitPrice = parseUnknownAmount(item.unitPrice);
+    const normalizedTotal = total ?? (unitPrice ? unitPrice * safeQuantity : 0);
+
+    if (normalizedTotal < 0) {
+      continue;
+    }
+
+    const normalizedUnitPrice = unitPrice ?? (normalizedTotal > 0 ? normalizedTotal / safeQuantity : 0);
+    const gstRate = parseUnknownAmount(item.gstRate) ?? invoiceGstRate;
+
+    normalized.push({
+      description,
+      category: normalizeExpenseCategory(item.category, description),
+      quantity: safeQuantity,
+      unitPrice: roundMoney(normalizedUnitPrice),
+      total: roundMoney(normalizedTotal),
+      gstRate: roundMoney(gstRate),
+    });
+  }
+
+  return normalized.length > 0 ? normalized.slice(0, 12) : [buildFallbackItem(totalAmount, gstAmount)];
+}
+
 function deriveEffectiveGstRate(totalAmount: number, gstAmount: number) {
   const taxableAmount = totalAmount - gstAmount;
   if (taxableAmount <= 0 || gstAmount <= 0) {
@@ -353,31 +540,7 @@ function extractLineItems(lines: string[], totalAmount: number, gstAmount: numbe
   return parsed.slice(0, 12);
 }
 
-async function extractRawText(fileBuffer: Buffer, mimeType: string) {
-  if (mimeType === "application/pdf") {
-    const parser = new PDFParse({ data: fileBuffer });
-    try {
-      const result = await parser.getText();
-      return normalizeWhitespace(result.text || "");
-    } finally {
-      await parser.destroy();
-    }
-  }
-
-  if (SUPPORTED_IMAGE_MIME_TYPES.has(mimeType)) {
-    const result = await Tesseract.recognize(fileBuffer, "eng");
-    return normalizeWhitespace(result.data.text || "");
-  }
-
-  throw new Error("Unsupported invoice file format. Please upload PDF, PNG, JPG, JPEG, or WebP.");
-}
-
-export async function extractInvoiceFromFile(fileName: string, fileBuffer: Buffer, mimeType: string) {
-  const rawText = await extractRawText(fileBuffer, mimeType);
-  if (!rawText) {
-    throw new Error("No readable text found in the uploaded invoice.");
-  }
-
+function extractInvoiceFromText(rawText: string): Omit<ExtractedInvoiceDraft, "notes"> {
   const lines = rawText
     .split("\n")
     .map((line) => line.trim())
@@ -399,20 +562,230 @@ export async function extractInvoiceFromFile(fileName: string, fileBuffer: Buffe
     sumAmountsByLabels(lines, ["cgst", "sgst", "igst", "gst"]) ??
     0;
 
-  const items = extractLineItems(lines, totalAmount, gstAmount);
-
   return {
-    fileName,
     vendorName,
     vendorGSTIN,
     invoiceNumber,
     invoiceDate,
     dueDate,
-    totalAmount: Number(totalAmount.toFixed(2)),
-    gstAmount: Number(gstAmount.toFixed(2)),
+    totalAmount: roundMoney(totalAmount),
+    gstAmount: roundMoney(gstAmount),
     currencySymbol: detectCurrencySymbol(rawText),
     category: "Other" as ExpenseCategory,
-    notes: `Extracted from uploaded invoice text. Review OCR-derived values before saving.`,
-    items,
+    items: extractLineItems(lines, totalAmount, gstAmount),
   };
+}
+
+function buildTextExtraction(fileName: string, rawText: string, source: string) {
+  const extracted = extractInvoiceFromText(rawText);
+
+  return {
+    fileName,
+    ...extracted,
+    notes: `${source}. Review OCR-derived values before saving.`,
+  };
+}
+
+async function extractPdfTextLocally(fileBuffer: Buffer) {
+  const parser = new PDFParse({ data: fileBuffer });
+  try {
+    const result = await parser.getText();
+    return normalizeWhitespace(result.text || "");
+  } finally {
+    await parser.destroy();
+  }
+}
+
+async function extractImageTextLocally(fileBuffer: Buffer) {
+  const result = await Tesseract.recognize(fileBuffer, "eng");
+  return normalizeWhitespace(result.data.text || "");
+}
+
+async function extractRawTextLocally(fileBuffer: Buffer, mimeType: string) {
+  if (mimeType === "application/pdf") {
+    return extractPdfTextLocally(fileBuffer);
+  }
+
+  if (SUPPORTED_IMAGE_MIME_TYPES.has(mimeType)) {
+    return extractImageTextLocally(fileBuffer);
+  }
+
+  throw new Error("Unsupported invoice file format. Please upload PDF, PNG, JPG, JPEG, or WebP.");
+}
+
+async function generateGeminiContent(prompt: string, fileBuffer: Buffer, mimeType: string) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), GEMINI_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${config.geminiModel}:generateContent?key=${encodeURIComponent(config.geminiApiKey)}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          contents: [
+            {
+              role: "user",
+              parts: [
+                { text: prompt },
+                {
+                  inlineData: {
+                    mimeType,
+                    data: fileBuffer.toString("base64"),
+                  },
+                },
+              ],
+            },
+          ],
+          generationConfig: {
+            responseMimeType: "application/json",
+            temperature: 0.1,
+          },
+        }),
+        signal: controller.signal,
+      },
+    );
+
+    if (!response.ok) {
+      throw new Error(`Gemini request failed with status ${response.status}: ${await response.text()}`);
+    }
+
+    const payload = await response.json() as {
+      candidates?: Array<{
+        content?: {
+          parts?: Array<{ text?: string }>;
+        };
+      }>;
+    };
+
+    const text = payload.candidates
+      ?.flatMap((candidate) => candidate.content?.parts || [])
+      .map((part) => part.text || "")
+      .find((value) => value.trim().length > 0);
+
+    if (!text) {
+      throw new Error("Gemini returned no content.");
+    }
+
+    return AI_INVOICE_SCHEMA.parse(extractJsonPayload(text));
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function extractWithGemini(fileBuffer: Buffer, mimeType: string) {
+  if (!config.geminiApiKey || !SUPPORTED_GEMINI_MIME_TYPES.has(mimeType)) {
+    return undefined;
+  }
+
+  const prompt = [
+    "Extract invoice fields from the uploaded document and return JSON only.",
+    "Use empty strings, 0, or [] when a field is missing.",
+    "Dates must be in YYYY-MM-DD when possible.",
+    "Monetary values must be numbers without currency symbols.",
+    "Return this shape exactly:",
+    JSON.stringify({
+      vendorName: "",
+      vendorGSTIN: "",
+      invoiceNumber: "",
+      invoiceDate: "",
+      dueDate: "",
+      totalAmount: 0,
+      gstAmount: 0,
+      currencySymbol: "",
+      notes: "",
+      items: [
+        {
+          description: "",
+          quantity: 1,
+          unitPrice: 0,
+          total: 0,
+          gstRate: 0,
+          category: "Other",
+        },
+      ],
+    }),
+  ].join("\n");
+
+  return generateGeminiContent(prompt, fileBuffer, mimeType);
+}
+
+function buildAiExtraction(fileName: string, aiInvoice: AiInvoice, rawTextFallback = "") {
+  const fallback = rawTextFallback ? extractInvoiceFromText(rawTextFallback) : undefined;
+  const totalAmount = roundMoney(parseUnknownAmount(aiInvoice.totalAmount) ?? fallback?.totalAmount ?? 0);
+  const gstAmount = roundMoney(parseUnknownAmount(aiInvoice.gstAmount) ?? fallback?.gstAmount ?? 0);
+  const invoiceDate = normalizeDateValue(aiInvoice.invoiceDate) || fallback?.invoiceDate || "";
+  const dueDate = normalizeDateValue(aiInvoice.dueDate) || fallback?.dueDate || "";
+  const vendorName = aiInvoice.vendorName?.trim() || fallback?.vendorName || "";
+  const invoiceNumber = aiInvoice.invoiceNumber?.trim() || fallback?.invoiceNumber || "";
+  const currencySymbol = typeof aiInvoice.currencySymbol === "string" && aiInvoice.currencySymbol.trim()
+    ? aiInvoice.currencySymbol.trim()
+    : detectCurrencySymbol(rawTextFallback);
+
+  return {
+    fileName,
+    vendorName,
+    vendorGSTIN: normalizeGstin(aiInvoice.vendorGSTIN, rawTextFallback),
+    invoiceNumber,
+    invoiceDate,
+    dueDate,
+    totalAmount,
+    gstAmount,
+    currencySymbol,
+    category: "Other" as ExpenseCategory,
+    notes: `${aiInvoice.notes?.trim() || "Extracted with Gemini and normalized locally."} Review AI-derived values before saving.`,
+    items: normalizeAiItems(aiInvoice.items, totalAmount, gstAmount),
+  };
+}
+
+export async function extractInvoiceFromFile(fileName: string, fileBuffer: Buffer, mimeType: string) {
+  if (mimeType === "application/pdf") {
+    const localPdfText = await extractPdfTextLocally(fileBuffer);
+    if (isMeaningfulPdfText(localPdfText)) {
+      return buildTextExtraction(fileName, localPdfText, "Extracted from digital PDF text locally");
+    }
+
+    try {
+      const aiInvoice = await extractWithGemini(fileBuffer, mimeType);
+      if (aiInvoice) {
+        return buildAiExtraction(fileName, aiInvoice, localPdfText);
+      }
+    } catch (error) {
+      console.warn("Gemini extraction failed for PDF, falling back to local extraction.", error);
+    }
+
+    if (localPdfText) {
+      return buildTextExtraction(fileName, localPdfText, "Extracted from PDF text fallback locally");
+    }
+
+    throw new Error("No readable text found in the uploaded invoice.");
+  }
+
+  if (SUPPORTED_IMAGE_MIME_TYPES.has(mimeType)) {
+    try {
+      const aiInvoice = await extractWithGemini(fileBuffer, mimeType);
+      if (aiInvoice) {
+        return buildAiExtraction(fileName, aiInvoice);
+      }
+    } catch (error) {
+      console.warn("Gemini extraction failed for image, falling back to Tesseract OCR.", error);
+    }
+
+    const localImageText = await extractImageTextLocally(fileBuffer);
+    if (!localImageText) {
+      throw new Error("No readable text found in the uploaded invoice.");
+    }
+
+    return buildTextExtraction(fileName, localImageText, "Extracted with local OCR fallback");
+  }
+
+  const rawText = await extractRawTextLocally(fileBuffer, mimeType);
+  if (!rawText) {
+    throw new Error("No readable text found in the uploaded invoice.");
+  }
+
+  return buildTextExtraction(fileName, rawText, "Extracted from uploaded invoice text");
 }

@@ -86,12 +86,16 @@ MONGODB_URI=mongodb://127.0.0.1:27017
 MONGODB_DB_NAME=invoicesnap
 AUTH_COOKIE_NAME=invoicesnap_auth
 AUTH_COOKIE_SAME_SITE=lax
+GOOGLE_CLIENT_ID=your_google_client_id
+GEMINI_API_KEY=your_gemini_api_key
+GEMINI_MODEL=gemini-2.0-flash
 ```
 
 Frontend (`frontend/.env`):
 
 ```env
 NEXT_PUBLIC_API_BASE_URL=http://localhost:4000/api
+NEXT_PUBLIC_GOOGLE_CLIENT_ID=your_google_client_id
 ```
 
 ## Local Development
@@ -222,6 +226,13 @@ Other routes:
 - Add role-based access control and audit logs
 - Add automated tests and CI pipelines
 - Add object storage for uploaded documents
+
+## Invoice Extraction Strategy
+
+- Digital PDFs use local text extraction with `pdf-parse`
+- Images and scanned PDFs can use Gemini for structured extraction when `GEMINI_API_KEY` is set
+- Gemini results are normalized locally with GSTIN, date, amount, and item validation
+- If Gemini fails or quota is exhausted, the backend falls back to the existing local extraction path
 
 ## License
 

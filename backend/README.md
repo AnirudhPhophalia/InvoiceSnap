@@ -28,6 +28,7 @@ Backend runs on `http://localhost:4000` by default.
 Data is stored in MongoDB using the configured `MONGODB_URI` and `MONGODB_DB_NAME` values.
 
 ## Invoice Extraction
-- Image invoices are OCRed with `tesseract.js`
-- PDF invoices are parsed with `pdf-parse`
-- Extracted fields are derived from invoice text using heuristics and should be reviewed before saving
+- Digital PDFs are parsed locally with `pdf-parse`
+- Scanned PDFs and images can be extracted with Gemini when `GEMINI_API_KEY` is configured
+- Local heuristics still validate and normalize GSTIN, dates, totals, and fallback extraction behavior
+- If Gemini is unavailable or rate-limited, the backend falls back to the local extractor
