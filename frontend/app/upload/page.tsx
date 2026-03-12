@@ -7,8 +7,8 @@ import { useRouter } from 'next/navigation'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { extractInvoice } from '@/lib/api'
-import type { ExpenseCategory, InvoiceItem } from '@/lib/types'
+import { extractInvoice, extractInvoicesBatch } from '@/lib/api'
+import type { ExpenseCategory, InvoiceInput, InvoiceItem } from '@/lib/types'
 
 const CATEGORIES: ExpenseCategory[] = [
   'Software',
@@ -28,8 +28,16 @@ export default function UploadPage() {
   const [fileName, setFileName] = useState('')
   const [step, setStep] = useState<'upload' | 'extract'>('upload')
   const [extracting, setExtracting] = useState(false)
+  const [batchExtracting, setBatchExtracting] = useState(false)
+  const [savingBatch, setSavingBatch] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
+  const [batchResults, setBatchResults] = useState<Array<{
+    fileName: string
+    extracted?: Omit<InvoiceInput, 'status'>
+    error?: string
+    saved?: boolean
+  }>>([])
   const [formData, setFormData] = useState({
     vendorName: '',
     vendorGSTIN: '',
@@ -40,6 +48,10 @@ export default function UploadPage() {
     gstAmount: 0,
     currencySymbol: '₹',
     category: 'Other' as ExpenseCategory,
+    sourceDocumentId: '',
+    extractionSource: '',
+    extractionConfidence: 0,
+    extractionNeedsReview: false,
     items: [] as InvoiceItem[],
     notes: '',
   })
@@ -60,21 +72,28 @@ export default function UploadPage() {
 
     const files = e.dataTransfer.files
     if (files?.[0]) {
-      processFile(files[0])
+      processFiles(Array.from(files))
     }
   }
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
     if (files?.[0]) {
-      processFile(files[0])
+      processFiles(Array.from(files))
     }
   }
 
-  const processFile = (file: File) => {
+  const processFiles = (files: File[]) => {
     setError('')
-    setFileName(file.name)
-    void runExtraction(file)
+    if (files.length === 1) {
+      setBatchResults([])
+      setFileName(files[0].name)
+      void runExtraction(files[0])
+      return
+    }
+
+    setFileName('')
+    void runBatchExtraction(files)
   }
 
   const runExtraction = async (file: File) => {
@@ -93,6 +112,10 @@ export default function UploadPage() {
         gstAmount: extracted.gstAmount,
         currencySymbol: extracted.currencySymbol || '₹',
         category: extracted.category,
+        sourceDocumentId: extracted.sourceDocumentId || '',
+        extractionSource: extracted.extractionSource || '',
+        extractionConfidence: extracted.extractionConfidence || 0,
+        extractionNeedsReview: Boolean(extracted.extractionNeedsReview),
         items: extracted.items,
         notes: extracted.notes,
       })
@@ -100,6 +123,19 @@ export default function UploadPage() {
       setError(err instanceof Error ? err.message : 'Failed to extract invoice data')
     } finally {
       setExtracting(false)
+    }
+  }
+
+  const runBatchExtraction = async (files: File[]) => {
+    setBatchExtracting(true)
+    setStep('extract')
+    try {
+      const { results } = await extractInvoicesBatch(files)
+      setBatchResults(results)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to extract invoices')
+    } finally {
+      setBatchExtracting(false)
     }
   }
 
@@ -174,6 +210,7 @@ export default function UploadPage() {
 
       await addInvoice({
         fileName,
+        sourceDocumentId: formData.sourceDocumentId || undefined,
         vendorName: formData.vendorName,
         vendorGSTIN: formData.vendorGSTIN,
         invoiceNumber: formData.invoiceNumber,
@@ -183,6 +220,9 @@ export default function UploadPage() {
         gstAmount: formData.gstAmount,
         currencySymbol: formData.currencySymbol,
         category: dominantCategory,
+        extractionSource: formData.extractionSource || undefined,
+        extractionConfidence: formData.extractionConfidence,
+        extractionNeedsReview: formData.extractionNeedsReview,
         items: formData.items.length > 0 ? formData.items : [
           {
             description: 'Invoice items',
@@ -201,6 +241,48 @@ export default function UploadPage() {
       setError(err instanceof Error ? err.message : 'Failed to save invoice')
     } finally {
       setSubmitting(false)
+    }
+  }
+
+  const handleSaveBatch = async () => {
+    const pending = batchResults.filter((row) => row.extracted && !row.saved)
+    if (pending.length === 0) {
+      return
+    }
+
+    setSavingBatch(true)
+    setError('')
+    try {
+      for (const row of pending) {
+        const extracted = row.extracted!
+        const fallbackTaxable = Math.max(extracted.totalAmount - extracted.gstAmount, 0)
+        const fallbackGstRate =
+          fallbackTaxable > 0 && extracted.gstAmount > 0
+            ? Number(((extracted.gstAmount / fallbackTaxable) * 100).toFixed(2))
+            : 0
+
+        await addInvoice({
+          ...extracted,
+          category: extracted.category || 'Other',
+          items: extracted.items.length > 0 ? extracted.items : [
+            {
+              description: 'Invoice items',
+              quantity: 1,
+              unitPrice: fallbackTaxable,
+              total: fallbackTaxable,
+              gstRate: fallbackGstRate,
+            },
+          ],
+          status: 'draft',
+        })
+      }
+
+      setBatchResults((prev) => prev.map((row) => row.extracted ? { ...row, saved: true } : row))
+      router.push('/invoices?needsReview=true')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save batch invoices')
+    } finally {
+      setSavingBatch(false)
     }
   }
 
@@ -244,6 +326,7 @@ export default function UploadPage() {
                 <div className="relative inline-block">
                   <input
                     type="file"
+                    multiple
                     accept=".pdf,.png,.jpg,.jpeg,.webp"
                     onChange={handleInputChange}
                     className="absolute inset-0 opacity-0 cursor-pointer"
@@ -254,7 +337,7 @@ export default function UploadPage() {
                 </div>
 
                 <p className="text-xs text-muted-foreground mt-7">
-                  Supported formats: PDF, PNG, JPG, JPEG, WebP (Max 10MB)
+                  Supported formats: PDF, PNG, JPG, JPEG, WebP (Max 10MB each). You can upload one or many files.
                 </p>
 
                 <div className="mt-5 flex flex-wrap justify-center gap-2 text-xs text-muted-foreground">
@@ -270,14 +353,14 @@ export default function UploadPage() {
             {/* AI Extraction Status */}
             <Card className="p-6 border-0 bg-gradient-to-r from-emerald-500/10 via-cyan-500/10 to-indigo-500/10 shadow-sm">
               <div className="flex items-center gap-4">
-                <div className={extracting ? 'animate-spin' : ''}>
-                  {extracting ? '⏳' : '✓'}
+                <div className={extracting || batchExtracting ? 'animate-spin' : ''}>
+                  {extracting || batchExtracting ? '⏳' : '✓'}
                 </div>
                 <div>
                   <p className="font-semibold">
-                    {extracting ? 'Extracting data...' : 'Data extracted successfully!'}
+                    {extracting || batchExtracting ? 'Extracting data...' : 'Data extracted successfully!'}
                   </p>
-                  <p className="text-sm text-muted-foreground">{fileName}</p>
+                  <p className="text-sm text-muted-foreground">{fileName || `${batchResults.length} files`}</p>
                 </div>
               </div>
             </Card>
@@ -288,7 +371,43 @@ export default function UploadPage() {
               </Card>
             )}
 
-            {/* Extracted Data Form */}
+            {batchResults.length > 1 ? (
+              <Card className="p-6">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <h3 className="text-lg font-semibold">Batch Extraction Results</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Success: {batchResults.filter((row) => row.extracted).length} / {batchResults.length}
+                    </p>
+                  </div>
+                  <Button onClick={() => void handleSaveBatch()} disabled={batchExtracting || savingBatch}>
+                    {savingBatch ? 'Saving...' : 'Save All As Draft'}
+                  </Button>
+                </div>
+
+                <div className="mt-4 space-y-3">
+                  {batchResults.map((row) => (
+                    <div key={row.fileName} className="rounded-lg border border-border p-3">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-medium">{row.fileName}</span>
+                        {row.saved && <span className="rounded-full bg-emerald-100 px-2 py-1 text-xs text-emerald-700">Saved</span>}
+                        {row.extracted?.extractionNeedsReview && (
+                          <span className="rounded-full bg-amber-100 px-2 py-1 text-xs text-amber-700">Needs Review</span>
+                        )}
+                        {!row.extracted && <span className="rounded-full bg-red-100 px-2 py-1 text-xs text-red-700">Failed</span>}
+                      </div>
+                      {row.extracted ? (
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          {row.extracted.vendorName || 'Unknown Vendor'} • {row.extracted.invoiceNumber || 'No invoice number'} • {row.extracted.currencySymbol || '₹'}{row.extracted.totalAmount.toFixed(2)}
+                        </p>
+                      ) : (
+                        <p className="mt-1 text-sm text-destructive">{row.error || 'Extraction failed'}</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {[
                 { label: 'Vendor Name', name: 'vendorName', required: true },
@@ -316,6 +435,18 @@ export default function UploadPage() {
                   />
                 </div>
               ))}
+
+              <div className="md:col-span-2 flex flex-wrap gap-2 text-xs">
+                {formData.extractionSource && (
+                  <span className="rounded-full border border-border px-2 py-1">Source: {formData.extractionSource}</span>
+                )}
+                <span className="rounded-full border border-border px-2 py-1">
+                  Confidence: {Math.round((formData.extractionConfidence || 0) * 100)}%
+                </span>
+                {formData.extractionNeedsReview && (
+                  <span className="rounded-full bg-amber-100 px-2 py-1 text-amber-700">Needs Review</span>
+                )}
+              </div>
 
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium mb-2">Line Items</label>
@@ -372,6 +503,7 @@ export default function UploadPage() {
                 />
               </div>
             </div>
+            )}
 
             {/* Actions */}
             <div className="flex gap-4">
@@ -390,16 +522,23 @@ export default function UploadPage() {
                     gstAmount: 0,
                     currencySymbol: '₹',
                     category: 'Other' as ExpenseCategory,
+                    sourceDocumentId: '',
+                    extractionSource: '',
+                    extractionConfidence: 0,
+                    extractionNeedsReview: false,
                     items: [],
                     notes: '',
                   })
+                  setBatchResults([])
                 }}
               >
                 Upload Different File
               </Button>
+              {batchResults.length <= 1 && (
               <Button onClick={() => void handleSubmit()} disabled={extracting || submitting} className="ml-auto">
                 {submitting ? 'Saving...' : 'Save Invoice'}
               </Button>
+              )}
             </div>
           </div>
         )}

@@ -96,17 +96,44 @@ export async function updateSettings(name: string, company: string) {
   });
 }
 
-export async function listInvoices(search?: string, status?: InvoiceStatus | "all") {
+export async function listInvoices(options?: {
+  search?: string;
+  status?: InvoiceStatus | "all";
+  category?: string;
+  needsReview?: boolean;
+  page?: number;
+  pageSize?: number;
+  sortBy?: "uploadedAt" | "invoiceDate" | "vendorName" | "totalAmount" | "status";
+  sortOrder?: "asc" | "desc";
+}) {
   const params = new URLSearchParams();
-  if (search) {
-    params.set("search", search);
+  if (options?.search) {
+    params.set("search", options.search);
   }
-  if (status) {
-    params.set("status", status);
+  if (options?.status) {
+    params.set("status", options.status);
+  }
+  if (options?.category) {
+    params.set("category", options.category);
+  }
+  if (typeof options?.needsReview === "boolean") {
+    params.set("needsReview", String(options.needsReview));
+  }
+  if (options?.page) {
+    params.set("page", String(options.page));
+  }
+  if (options?.pageSize) {
+    params.set("pageSize", String(options.pageSize));
+  }
+  if (options?.sortBy) {
+    params.set("sortBy", options.sortBy);
+  }
+  if (options?.sortOrder) {
+    params.set("sortOrder", options.sortOrder);
   }
 
   const query = params.toString() ? `?${params.toString()}` : "";
-  return request<{ invoices: Invoice[] }>(`/invoices${query}`);
+  return request<{ invoices: Invoice[]; pagination?: { page: number; pageSize: number; total: number; totalPages: number } }>(`/invoices${query}`);
 }
 
 export async function createInvoice(invoice: InvoiceInput) {
@@ -136,6 +163,25 @@ export async function extractInvoice(file: File) {
   form.append("file", file);
 
   return request<{ extracted: Omit<InvoiceInput, "status"> }>("/extract", {
+    method: "POST",
+    body: form,
+  });
+}
+
+export async function extractInvoicesBatch(files: File[]) {
+  const form = new FormData();
+  for (const file of files) {
+    form.append("files", file);
+  }
+
+  return request<{
+    results: Array<{
+      fileName: string;
+      extracted?: Omit<InvoiceInput, "status">;
+      error?: string;
+    }>;
+    summary: { total: number; success: number; failed: number };
+  }>("/extract/batch", {
     method: "POST",
     body: form,
   });
@@ -183,4 +229,8 @@ export function downloadFile(path: string): Promise<Response> {
     method: "GET",
     credentials: "include",
   });
+}
+
+export function getSourceDocumentUrl(invoiceId: string) {
+  return `${API_BASE}/invoices/${invoiceId}/source`;
 }

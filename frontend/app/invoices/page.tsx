@@ -1,14 +1,14 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { ProtectedLayout } from '@/components/protected-layout'
-import { useInvoices } from '@/context/invoice-context'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { formatDateOnly } from '@/lib/utils'
 import Link from 'next/link'
-import type { ExpenseCategory } from '@/lib/types'
+import { listInvoices, removeInvoice } from '@/lib/api'
+import type { ExpenseCategory, Invoice } from '@/lib/types'
 
 const CATEGORIES: Array<'all' | ExpenseCategory> = [
   'all',
@@ -25,40 +25,76 @@ const CATEGORIES: Array<'all' | ExpenseCategory> = [
 ]
 
 export default function InvoicesPage() {
-  const { invoices, deleteInvoice, loading } = useInvoices()
+  const [invoices, setInvoices] = useState<Invoice[]>([])
+  const [loading, setLoading] = useState(true)
+  const [page, setPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [totalRows, setTotalRows] = useState(0)
+  const [sortBy, setSortBy] = useState<'uploadedAt' | 'invoiceDate' | 'vendorName' | 'totalAmount' | 'status'>('uploadedAt')
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState<'all' | 'draft' | 'confirmed' | 'paid'>('all')
   const [categoryFilter, setCategoryFilter] = useState<'all' | ExpenseCategory>('all')
+  const [needsReviewFilter, setNeedsReviewFilter] = useState<'all' | 'yes' | 'no'>('all')
   const [error, setError] = useState('')
 
   const handleDelete = async (id: string) => {
     setError('')
     try {
-      await deleteInvoice(id)
+      await removeInvoice(id)
+      await refreshInvoices()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete invoice')
     }
   }
 
-  const filteredInvoices = useMemo(() => {
-    return invoices.filter((invoice) => {
-      const matchesSearch =
-        invoice.vendorName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        invoice.invoiceNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        invoice.fileName.toLowerCase().includes(searchTerm.toLowerCase())
+  const refreshInvoices = async () => {
+    setLoading(true)
+    try {
+      const { invoices: rows, pagination } = await listInvoices({
+        search: searchTerm || undefined,
+        status: statusFilter,
+        category: categoryFilter,
+        needsReview: needsReviewFilter === 'all' ? undefined : needsReviewFilter === 'yes',
+        page,
+        pageSize: 12,
+        sortBy,
+        sortOrder,
+      })
+      setInvoices(rows)
+      setTotalPages(pagination?.totalPages || 1)
+      setTotalRows(pagination?.total || rows.length)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch invoices')
+      setInvoices([])
+      setTotalPages(1)
+      setTotalRows(0)
+    } finally {
+      setLoading(false)
+    }
+  }
 
-      const matchesStatus = statusFilter === 'all' || invoice.status === statusFilter
-      const matchesCategory = categoryFilter === 'all' || (invoice.category || 'Other') === categoryFilter
+  useEffect(() => {
+    void refreshInvoices()
+  }, [page, sortBy, sortOrder, statusFilter, categoryFilter, needsReviewFilter])
 
-      return matchesSearch && matchesStatus && matchesCategory
-    })
-  }, [invoices, searchTerm, statusFilter, categoryFilter])
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setPage(1)
+      void refreshInvoices()
+    }, 250)
+
+    return () => clearTimeout(timer)
+  }, [searchTerm])
+
+  const filteredInvoices = useMemo(() => invoices, [invoices])
 
   const stats = {
-    total: invoices.length,
+    total: totalRows,
     totalAmount: invoices.reduce((sum, inv) => sum + inv.totalAmount, 0),
     confirmed: invoices.filter((inv) => inv.status === 'confirmed').length,
     draft: invoices.filter((inv) => inv.status === 'draft').length,
+    review: invoices.filter((inv) => Boolean(inv.extractionNeedsReview)).length,
   }
 
   return (
@@ -97,7 +133,9 @@ export default function InvoicesPage() {
               <Input
                 placeholder="Search by vendor, invoice number..."
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                onChange={(e) => {
+                  setSearchTerm(e.target.value)
+                }}
               />
             </div>
             <div className="flex gap-2">
@@ -115,7 +153,10 @@ export default function InvoicesPage() {
             <div className="w-full md:w-64">
               <select
                 value={categoryFilter}
-                onChange={(e) => setCategoryFilter(e.target.value as 'all' | ExpenseCategory)}
+                onChange={(e) => {
+                  setCategoryFilter(e.target.value as 'all' | ExpenseCategory)
+                  setPage(1)
+                }}
                 className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
               >
                 {CATEGORIES.map((category) => (
@@ -123,6 +164,39 @@ export default function InvoicesPage() {
                     {category === 'all' ? 'All Categories' : category}
                   </option>
                 ))}
+              </select>
+            </div>
+            <div className="w-full md:w-44">
+              <select
+                value={needsReviewFilter}
+                onChange={(e) => {
+                  setNeedsReviewFilter(e.target.value as 'all' | 'yes' | 'no')
+                  setPage(1)
+                }}
+                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+              >
+                <option value="all">All Review States</option>
+                <option value="yes">Needs Review</option>
+                <option value="no">Reviewed</option>
+              </select>
+            </div>
+            <div className="w-full md:w-44">
+              <select
+                value={`${sortBy}:${sortOrder}`}
+                onChange={(e) => {
+                  const [nextSortBy, nextSortOrder] = e.target.value.split(':') as [typeof sortBy, typeof sortOrder]
+                  setSortBy(nextSortBy)
+                  setSortOrder(nextSortOrder)
+                  setPage(1)
+                }}
+                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+              >
+                <option value="uploadedAt:desc">Newest First</option>
+                <option value="uploadedAt:asc">Oldest First</option>
+                <option value="invoiceDate:desc">Invoice Date Desc</option>
+                <option value="invoiceDate:asc">Invoice Date Asc</option>
+                <option value="vendorName:asc">Vendor A-Z</option>
+                <option value="totalAmount:desc">Amount High-Low</option>
               </select>
             </div>
           </div>
@@ -163,6 +237,11 @@ export default function InvoicesPage() {
                       <p className="mt-1 inline-block rounded bg-secondary px-2 py-0.5 text-xs text-muted-foreground">
                         {(invoice.category || 'Other')}
                       </p>
+                      {invoice.extractionNeedsReview && (
+                        <p className="mt-1 ml-2 inline-block rounded bg-amber-100 px-2 py-0.5 text-xs text-amber-700">
+                          Needs Review
+                        </p>
+                      )}
                     </Link>
                   </div>
 
@@ -209,6 +288,18 @@ export default function InvoicesPage() {
             ))}
           </div>
         )}
+
+        <div className="mt-6 flex items-center justify-between">
+          <p className="text-sm text-muted-foreground">Page {page} of {totalPages}</p>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={() => setPage((prev) => Math.max(1, prev - 1))} disabled={page <= 1 || loading}>
+              Previous
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))} disabled={page >= totalPages || loading}>
+              Next
+            </Button>
+          </div>
+        </div>
       </div>
     </ProtectedLayout>
   )

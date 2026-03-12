@@ -31,6 +31,7 @@ export type ExpenseCategory =
 export interface Invoice {
   id: string;
   fileName: string;
+  sourceDocumentId?: string;
   vendorName: string;
   vendorGSTIN: string;
   invoiceNumber: string;
@@ -40,6 +41,9 @@ export interface Invoice {
   gstAmount: number;
   currencySymbol: string;
   category: ExpenseCategory;
+  extractionSource?: string;
+  extractionConfidence?: number;
+  extractionNeedsReview?: boolean;
   items: InvoiceItem[];
   notes: string;
   uploadedAt: string;
@@ -48,6 +52,7 @@ export interface Invoice {
 
 export interface InvoiceInput {
   fileName: string;
+  sourceDocumentId?: string;
   vendorName: string;
   vendorGSTIN: string;
   invoiceNumber: string;
@@ -57,6 +62,9 @@ export interface InvoiceInput {
   gstAmount: number;
   currencySymbol: string;
   category: ExpenseCategory;
+  extractionSource?: string;
+  extractionConfidence?: number;
+  extractionNeedsReview?: boolean;
   items: InvoiceItem[];
   notes: string;
   status: InvoiceStatus;

@@ -24,6 +24,7 @@ export interface InvoiceRecord {
   id: string;
   userId: string;
   fileName: string;
+  sourceDocumentId?: string;
   vendorName: string;
   vendorGSTIN: string;
   invoiceNumber: string;
@@ -33,10 +34,23 @@ export interface InvoiceRecord {
   gstAmount: number;
   currencySymbol: string;
   category: ExpenseCategory;
+  extractionSource?: string;
+  extractionConfidence?: number;
+  extractionNeedsReview?: boolean;
   items: InvoiceItem[];
   notes: string;
   uploadedAt: string;
   status: InvoiceStatus;
+}
+
+export interface SourceDocumentRecord {
+  id: string;
+  userId: string;
+  fileName: string;
+  mimeType: string;
+  size: number;
+  content: Buffer;
+  createdAt: string;
 }
 
 export interface CorrectionRecord {
@@ -66,6 +80,7 @@ export interface Database {
   users: UserRecord[];
   invoices: InvoiceRecord[];
   corrections: CorrectionRecord[];
+  sourceDocuments: SourceDocumentRecord[];
 }
 
 export interface AuthResponseUser {

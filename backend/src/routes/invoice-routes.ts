@@ -1,11 +1,12 @@
 import { Router } from "express";
 import { z } from "zod";
 import { v4 as uuid } from "uuid";
-import { invoicesCollection } from "../db.js";
+import { invoicesCollection, sourceDocumentsCollection } from "../db.js";
 import { requireAuth } from "../middleware/auth-middleware.js";
 import type { InvoiceRecord } from "../types.js";
 import { suggestExpenseCategory, suggestItemCategory } from "../utils/categorize.js";
 import { learnFromCorrections } from "../utils/corrections.js";
+import { isLikelyDuplicate, normalizeConfidence, shouldFlagForReview } from "../utils/invoice-quality.js";
 import { renderPdfBuffer } from "../utils/pdf.js";
 
 const invoiceItemSchema = z.object({
@@ -30,6 +31,7 @@ const invoiceItemSchema = z.object({
 
 const createInvoiceSchema = z.object({
   fileName: z.string(),
+  sourceDocumentId: z.string().optional(),
   vendorName: z.string(),
   vendorGSTIN: z.string(),
   invoiceNumber: z.string(),
@@ -50,6 +52,9 @@ const createInvoiceSchema = z.object({
     "Rent",
     "Other",
   ]).default("Other"),
+  extractionSource: z.string().optional(),
+  extractionConfidence: z.number().min(0).max(1).optional(),
+  extractionNeedsReview: z.boolean().optional(),
   items: z.array(invoiceItemSchema),
   notes: z.string(),
   status: z.enum(["draft", "confirmed", "paid"]),
@@ -64,31 +69,64 @@ invoiceRouter.use(requireAuth);
 invoiceRouter.get("/", async (req, res) => {
   const invoicesStore = invoicesCollection();
   const status = typeof req.query.status === "string" ? req.query.status : undefined;
-  const search = typeof req.query.search === "string" ? req.query.search.trim().toLowerCase() : "";
+  const category = typeof req.query.category === "string" ? req.query.category : undefined;
+  const search = typeof req.query.search === "string" ? req.query.search.trim() : "";
+  const needsReview = typeof req.query.needsReview === "string" ? req.query.needsReview : undefined;
+  const page = Math.max(1, Number(req.query.page) || 1);
+  const hasPageSize = typeof req.query.pageSize === "string";
+  const pageSize = Math.min(100, Math.max(1, Number(req.query.pageSize) || 20));
+  const effectivePageSize = hasPageSize ? pageSize : 500;
+  const sortBy = typeof req.query.sortBy === "string" ? req.query.sortBy : "uploadedAt";
+  const sortOrder = req.query.sortOrder === "asc" ? 1 : -1;
+
+  const allowedSortFields: Record<string, string> = {
+    uploadedAt: "uploadedAt",
+    invoiceDate: "invoiceDate",
+    vendorName: "vendorName",
+    totalAmount: "totalAmount",
+    status: "status",
+  };
 
   const baseQuery: Record<string, unknown> = { userId: req.user!.id };
   if (status && status !== "all") {
     baseQuery.status = status;
   }
+  if (category && category !== "all") {
+    baseQuery.category = category;
+  }
+  if (needsReview === "true") {
+    baseQuery.extractionNeedsReview = true;
+  }
+  if (needsReview === "false") {
+    baseQuery.extractionNeedsReview = false;
+  }
 
-  const invoices = (await invoicesStore
+  if (search) {
+    baseQuery.$or = [
+      { vendorName: { $regex: search, $options: "i" } },
+      { invoiceNumber: { $regex: search, $options: "i" } },
+      { fileName: { $regex: search, $options: "i" } },
+      { category: { $regex: search, $options: "i" } },
+    ];
+  }
+
+  const total = await invoicesStore.countDocuments(baseQuery);
+  const invoices = await invoicesStore
     .find(baseQuery)
-    .sort({ uploadedAt: -1 })
-    .toArray())
-    .filter((invoice) => {
-      if (!search) {
-        return true;
-      }
+    .sort({ [allowedSortFields[sortBy] || "uploadedAt"]: sortOrder })
+    .skip((page - 1) * effectivePageSize)
+    .limit(effectivePageSize)
+    .toArray();
 
-      return (
-        invoice.vendorName.toLowerCase().includes(search) ||
-        invoice.invoiceNumber.toLowerCase().includes(search) ||
-        invoice.fileName.toLowerCase().includes(search) ||
-        (invoice.category || "Other").toLowerCase().includes(search)
-      );
-    });
-
-  res.json({ invoices });
+  res.json({
+    invoices,
+    pagination: {
+      page,
+      pageSize: effectivePageSize,
+      total,
+      totalPages: Math.max(1, Math.ceil(total / effectivePageSize)),
+    },
+  });
 });
 
 invoiceRouter.post("/", async (req, res) => {
@@ -110,12 +148,58 @@ invoiceRouter.post("/", async (req, res) => {
     ...item,
     category: item.category || suggestItemCategory(item.description),
   }));
+
+  const duplicateCandidates = await invoicesStore
+    .find({
+      userId: req.user!.id,
+      invoiceNumber: parsed.data.invoiceNumber,
+      invoiceDate: parsed.data.invoiceDate,
+    })
+    .limit(20)
+    .toArray();
+
+  const duplicate = duplicateCandidates.find((row) =>
+    isLikelyDuplicate(
+      {
+        vendorName: parsed.data.vendorName,
+        vendorGSTIN: parsed.data.vendorGSTIN,
+        invoiceNumber: parsed.data.invoiceNumber,
+        invoiceDate: parsed.data.invoiceDate,
+        totalAmount: parsed.data.totalAmount,
+      },
+      {
+        vendorName: row.vendorName,
+        vendorGSTIN: row.vendorGSTIN,
+        invoiceNumber: row.invoiceNumber,
+        invoiceDate: row.invoiceDate,
+        totalAmount: row.totalAmount,
+      },
+    ),
+  );
+
+  if (duplicate) {
+    res.status(409).json({ message: "Duplicate invoice detected. This invoice appears to already exist." });
+    return;
+  }
+
+  const extractionConfidence = normalizeConfidence(parsed.data.extractionConfidence ?? 0);
+  const extractionNeedsReview = parsed.data.extractionNeedsReview ?? shouldFlagForReview({
+    vendorName: parsed.data.vendorName,
+    invoiceNumber: parsed.data.invoiceNumber,
+    invoiceDate: parsed.data.invoiceDate,
+    totalAmount: parsed.data.totalAmount,
+    items,
+    extractionConfidence,
+  });
+
   const newInvoice: InvoiceRecord = {
     id: uuid(),
     userId: req.user!.id,
     ...parsed.data,
     items,
     category,
+    extractionConfidence,
+    extractionNeedsReview,
     uploadedAt: new Date().toISOString(),
   };
 
@@ -133,6 +217,29 @@ invoiceRouter.get("/:id", async (req, res) => {
   }
 
   res.json({ invoice });
+});
+
+invoiceRouter.get("/:id/source", async (req, res) => {
+  const invoice = await invoicesCollection().findOne({ id: req.params.id, userId: req.user!.id });
+  if (!invoice) {
+    res.status(404).json({ message: "Invoice not found" });
+    return;
+  }
+
+  if (!invoice.sourceDocumentId) {
+    res.status(404).json({ message: "Source document not found for this invoice" });
+    return;
+  }
+
+  const source = await sourceDocumentsCollection().findOne({ id: invoice.sourceDocumentId, userId: req.user!.id });
+  if (!source) {
+    res.status(404).json({ message: "Source document not found" });
+    return;
+  }
+
+  res.setHeader("Content-Type", source.mimeType);
+  res.setHeader("Content-Disposition", `inline; filename=${source.fileName}`);
+  res.send(Buffer.isBuffer(source.content) ? source.content : Buffer.from(source.content));
 });
 
 invoiceRouter.patch("/:id", async (req, res) => {
@@ -179,6 +286,27 @@ invoiceRouter.patch("/:id", async (req, res) => {
 
   if (!updates.currencySymbol) {
     updates.currencySymbol = target.currencySymbol || "₹";
+  }
+
+  if (
+    typeof updates.vendorName !== "undefined" ||
+    typeof updates.invoiceNumber !== "undefined" ||
+    typeof updates.invoiceDate !== "undefined" ||
+    typeof updates.totalAmount !== "undefined" ||
+    typeof updates.items !== "undefined" ||
+    typeof updates.extractionConfidence === "number"
+  ) {
+    const candidateItems = updates.items ?? target.items;
+    const candidateConfidence = normalizeConfidence(updates.extractionConfidence ?? target.extractionConfidence ?? 0);
+    updates.extractionConfidence = candidateConfidence;
+    updates.extractionNeedsReview = shouldFlagForReview({
+      vendorName: updates.vendorName ?? target.vendorName,
+      invoiceNumber: updates.invoiceNumber ?? target.invoiceNumber,
+      invoiceDate: updates.invoiceDate ?? target.invoiceDate,
+      totalAmount: updates.totalAmount ?? target.totalAmount,
+      items: candidateItems,
+      extractionConfidence: candidateConfidence,
+    });
   }
 
   await learnFromCorrections(req.user!.id, target, updates);

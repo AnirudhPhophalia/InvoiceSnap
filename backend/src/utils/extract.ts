@@ -4,6 +4,7 @@ import { z } from "zod";
 import { config } from "../config.js";
 import type { ExpenseCategory, InvoiceItem } from "../types.js";
 import { suggestItemCategory } from "./categorize.js";
+import { normalizeConfidence, shouldFlagForReview, type ExtractionSource } from "./invoice-quality.js";
 
 const SUPPORTED_IMAGE_MIME_TYPES = new Set([
   "image/png",
@@ -576,13 +577,30 @@ function extractInvoiceFromText(rawText: string): Omit<ExtractedInvoiceDraft, "n
   };
 }
 
-function buildTextExtraction(fileName: string, rawText: string, source: string) {
+function buildTextExtraction(
+  fileName: string,
+  rawText: string,
+  source: string,
+  extractionSource: ExtractionSource,
+  extractionConfidence: number,
+) {
   const extracted = extractInvoiceFromText(rawText);
+  const confidence = normalizeConfidence(extractionConfidence);
 
   return {
     fileName,
     ...extracted,
     notes: `${source}. Review OCR-derived values before saving.`,
+    extractionSource,
+    extractionConfidence: confidence,
+    extractionNeedsReview: shouldFlagForReview({
+      vendorName: extracted.vendorName,
+      invoiceNumber: extracted.invoiceNumber,
+      invoiceDate: extracted.invoiceDate,
+      totalAmount: extracted.totalAmount,
+      items: extracted.items,
+      extractionConfidence: confidence,
+    }),
   };
 }
 
@@ -725,6 +743,9 @@ function buildAiExtraction(fileName: string, aiInvoice: AiInvoice, rawTextFallba
     ? aiInvoice.currencySymbol.trim()
     : detectCurrencySymbol(rawTextFallback);
 
+  const confidence = normalizeConfidence(0.88);
+  const items = normalizeAiItems(aiInvoice.items, totalAmount, gstAmount);
+
   return {
     fileName,
     vendorName,
@@ -737,7 +758,17 @@ function buildAiExtraction(fileName: string, aiInvoice: AiInvoice, rawTextFallba
     currencySymbol,
     category: "Other" as ExpenseCategory,
     notes: `${aiInvoice.notes?.trim() || "Extracted with Gemini and normalized locally."} Review AI-derived values before saving.`,
-    items: normalizeAiItems(aiInvoice.items, totalAmount, gstAmount),
+    extractionSource: "gemini_ai" as const,
+    extractionConfidence: confidence,
+    extractionNeedsReview: shouldFlagForReview({
+      vendorName,
+      invoiceNumber,
+      invoiceDate,
+      totalAmount,
+      items,
+      extractionConfidence: confidence,
+    }),
+    items,
   };
 }
 
@@ -745,7 +776,13 @@ export async function extractInvoiceFromFile(fileName: string, fileBuffer: Buffe
   if (mimeType === "application/pdf") {
     const localPdfText = await extractPdfTextLocally(fileBuffer);
     if (isMeaningfulPdfText(localPdfText)) {
-      return buildTextExtraction(fileName, localPdfText, "Extracted from digital PDF text locally");
+      return buildTextExtraction(
+        fileName,
+        localPdfText,
+        "Extracted from digital PDF text locally",
+        "digital_pdf_text",
+        0.97,
+      );
     }
 
     try {
@@ -758,7 +795,13 @@ export async function extractInvoiceFromFile(fileName: string, fileBuffer: Buffe
     }
 
     if (localPdfText) {
-      return buildTextExtraction(fileName, localPdfText, "Extracted from PDF text fallback locally");
+      return buildTextExtraction(
+        fileName,
+        localPdfText,
+        "Extracted from PDF text fallback locally",
+        "local_text_fallback",
+        0.68,
+      );
     }
 
     throw new Error("No readable text found in the uploaded invoice.");
@@ -779,7 +822,13 @@ export async function extractInvoiceFromFile(fileName: string, fileBuffer: Buffe
       throw new Error("No readable text found in the uploaded invoice.");
     }
 
-    return buildTextExtraction(fileName, localImageText, "Extracted with local OCR fallback");
+    return buildTextExtraction(
+      fileName,
+      localImageText,
+      "Extracted with local OCR fallback",
+      "local_ocr",
+      0.62,
+    );
   }
 
   const rawText = await extractRawTextLocally(fileBuffer, mimeType);
@@ -787,5 +836,11 @@ export async function extractInvoiceFromFile(fileName: string, fileBuffer: Buffe
     throw new Error("No readable text found in the uploaded invoice.");
   }
 
-  return buildTextExtraction(fileName, rawText, "Extracted from uploaded invoice text");
+  return buildTextExtraction(
+    fileName,
+    rawText,
+    "Extracted from uploaded invoice text",
+    "local_text_fallback",
+    0.7,
+  );
 }

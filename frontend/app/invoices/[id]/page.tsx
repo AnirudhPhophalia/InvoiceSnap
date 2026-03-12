@@ -7,7 +7,7 @@ import { useParams } from 'next/navigation'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
-import { downloadFile } from '@/lib/api'
+import { downloadFile, getSourceDocumentUrl } from '@/lib/api'
 import { formatDateOnly } from '@/lib/utils'
 import type { ExpenseCategory, Invoice } from '@/lib/types'
 
@@ -31,6 +31,7 @@ export default function InvoiceDetailPage() {
   const [error, setError] = useState('')
   const [editing, setEditing] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [showSourcePreview, setShowSourcePreview] = useState(false)
   const [draft, setDraft] = useState<Invoice | null>(null)
 
   useEffect(() => {
@@ -199,6 +200,19 @@ export default function InvoiceDetailPage() {
                   {invoice.vendorGSTIN && (
                     <p className="text-sm text-muted-foreground">GSTIN: {invoice.vendorGSTIN}</p>
                   )}
+                  <div className="mt-2 flex flex-wrap gap-2 text-xs">
+                    {invoice.extractionSource && (
+                      <span className="rounded-full border border-border px-2 py-1">Source: {invoice.extractionSource}</span>
+                    )}
+                    {typeof invoice.extractionConfidence === 'number' && (
+                      <span className="rounded-full border border-border px-2 py-1">
+                        Confidence: {Math.round(invoice.extractionConfidence * 100)}%
+                      </span>
+                    )}
+                    {invoice.extractionNeedsReview && (
+                      <span className="rounded-full bg-amber-100 px-2 py-1 text-amber-700">Needs Review</span>
+                    )}
+                  </div>
                 </div>
                 <div className="text-right">
                   <p className="text-3xl font-bold text-primary">
@@ -390,6 +404,31 @@ export default function InvoiceDetailPage() {
                 </div>
               </div>
             </Card>
+
+            {invoice.sourceDocumentId && (
+              <Card className="p-6">
+                <h3 className="font-semibold mb-4">Source Document</h3>
+                <div className="space-y-2">
+                  <Button variant="outline" className="w-full" onClick={() => setShowSourcePreview((prev) => !prev)}>
+                    {showSourcePreview ? 'Hide Preview' : 'Preview Original'}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => void handleDownload(`/invoices/${invoice.id}/source`, invoice.fileName)}
+                  >
+                    Download Original
+                  </Button>
+                </div>
+                {showSourcePreview && (
+                  <iframe
+                    title="Source invoice preview"
+                    src={getSourceDocumentUrl(invoice.id)}
+                    className="mt-4 h-96 w-full rounded-md border border-border"
+                  />
+                )}
+              </Card>
+            )}
           </div>
         </div>
       </div>
