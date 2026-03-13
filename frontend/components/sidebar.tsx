@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
 import { useAuth } from '@/context/auth-context'
 import { Button } from '@/components/ui/button'
@@ -44,9 +45,14 @@ export function Sidebar({ mobile = false, onNavigate }: SidebarProps) {
           onClick={onNavigate}
           className="flex items-center gap-3 hover:opacity-80 transition-opacity"
         >
-          <div className="w-8 h-8 bg-gradient-to-br from-sidebar-primary to-accent rounded-lg flex items-center justify-center text-sidebar-primary-foreground font-bold text-sm flex-shrink-0">
-            IS
-          </div>
+          <Image
+            src="/logo.png"
+            alt="InvoiceSnap logo"
+            width={32}
+            height={32}
+            className="rounded-lg flex-shrink-0"
+            priority
+          />
           {!useCompactSidebar && (
             <span className="font-bold text-sidebar-foreground">InvoiceSnap</span>
           )}

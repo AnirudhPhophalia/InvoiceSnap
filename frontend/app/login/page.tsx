@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useAuth } from '@/context/auth-context'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import Image from 'next/image'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card } from '@/components/ui/card'
@@ -57,9 +58,7 @@ export default function LoginPage() {
       <div className="w-full max-w-md relative">
         {/* Logo */}
         <Link href="/" className="flex items-center justify-center gap-2 mb-8">
-          <div className="w-8 h-8 bg-gradient-to-br from-primary to-accent rounded-lg flex items-center justify-center text-white font-bold">
-            IS
-          </div>
+          <Image src="/logo.png" alt="InvoiceSnap logo" width={32} height={32} className="rounded-lg" priority />
           <span className="text-xl font-bold text-foreground">InvoiceSnap</span>
         </Link>
 
@@ -135,6 +134,13 @@ export default function LoginPage() {
             </p>
           </div>
         </Card>
+
+        {/* Demo Info */}
+        <div className="mt-6 p-4 rounded-lg bg-info/10 border border-info/20 text-sm text-muted-foreground">
+          <p className="font-medium text-info mb-2">Demo Credentials:</p>
+          <p>Email: aphophalia_be24@thapar.edu</p>
+          <p>Password: Test@123</p>
+        </div>
       </div>
     </main>
   )

@@ -4,6 +4,7 @@ import { useAuth } from '@/context/auth-context'
 import { useRouter } from 'next/navigation'
 import { useEffect } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { Button } from '@/components/ui/button'
 
 export default function LandingPage() {
@@ -29,9 +30,7 @@ export default function LandingPage() {
       {/* Navigation */}
       <nav className="flex items-center justify-between px-6 py-4 md:px-12">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 bg-gradient-to-br from-primary to-accent rounded-lg flex items-center justify-center text-white font-bold text-sm">
-            IS
-          </div>
+          <Image src="/logo.png" alt="InvoiceSnap logo" width={32} height={32} className="rounded-lg" priority />
           <span className="text-2xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
             InvoiceSnap
           </span>
