@@ -20,10 +20,10 @@ export default function DashboardPage() {
 
   return (
     <ProtectedLayout>
-      <div className="p-8">
+      <div className="mx-auto max-w-7xl p-4 md:p-8">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-foreground mb-2">
+          <h1 className="mb-2 text-2xl font-bold text-foreground md:text-3xl">
             Welcome back, {user?.name}
           </h1>
           <p className="text-muted-foreground">
@@ -32,7 +32,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4 md:gap-6">
           {[
             {
               label: 'Total Invoices',
@@ -61,12 +61,12 @@ export default function DashboardPage() {
           ].map((stat) => (
             <Card
               key={stat.label}
-              className={`p-6 bg-gradient-to-br ${stat.color} border-0`}
+              className={`border-0 bg-gradient-to-br p-5 md:p-6 ${stat.color}`}
             >
               <div className="flex items-start justify-between">
                 <div>
                   <p className="text-sm text-muted-foreground mb-1">{stat.label}</p>
-                  <p className="text-3xl font-bold text-foreground">{stat.value}</p>
+                  <p className="text-2xl font-bold text-foreground md:text-3xl">{stat.value}</p>
                 </div>
                 <span className="text-3xl">{stat.icon}</span>
               </div>
@@ -98,7 +98,7 @@ export default function DashboardPage() {
 
         {/* Recent Invoices */}
         <div>
-          <div className="flex items-center justify-between mb-4">
+          <div className="mb-4 flex items-center justify-between gap-3">
             <h2 className="text-xl font-bold">Recent Invoices</h2>
             <Link href="/invoices" className="text-primary hover:underline text-sm">
               View all
@@ -117,8 +117,8 @@ export default function DashboardPage() {
               {recentInvoices.map((invoice) => (
                 <Link key={invoice.id} href={`/invoices/${invoice.id}`}>
                   <Card className="p-4 hover:bg-secondary transition-colors cursor-pointer">
-                    <div className="flex items-center justify-between">
-                      <div className="flex-1">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="min-w-0 flex-1">
                         <p className="font-medium text-foreground">
                           {invoice.vendorName || invoice.fileName}
                         </p>
@@ -126,7 +126,7 @@ export default function DashboardPage() {
                           Invoice #{invoice.invoiceNumber || 'N/A'} • {new Date(invoice.uploadedAt).toLocaleDateString()}
                         </p>
                       </div>
-                      <div className="text-right">
+                      <div className="text-left sm:text-right">
                         <p className="font-semibold text-foreground">
                           ₹{invoice.totalAmount.toFixed(2)}
                         </p>

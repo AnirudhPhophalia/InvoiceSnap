@@ -99,20 +99,20 @@ export default function InvoicesPage() {
 
   return (
     <ProtectedLayout>
-      <div className="p-8">
+      <div className="mx-auto max-w-7xl p-4 md:p-8">
         {/* Header */}
-        <div className="flex items-center justify-between mb-8">
+        <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-foreground mb-2">Invoices</h1>
+            <h1 className="mb-2 text-2xl font-bold text-foreground md:text-3xl">Invoices</h1>
             <p className="text-muted-foreground">Manage and view all your uploaded invoices</p>
           </div>
           <Link href="/upload">
-            <Button>Upload Invoice</Button>
+            <Button className="w-full sm:w-auto">Upload Invoice</Button>
           </Link>
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+        <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {[
             { label: 'Total Invoices', value: stats.total.toString() },
             { label: 'Total Amount', value: `₹${stats.totalAmount.toFixed(0)}` },
@@ -127,8 +127,8 @@ export default function InvoicesPage() {
         </div>
 
         {/* Filters */}
-        <Card className="p-4 mb-6">
-          <div className="flex flex-col md:flex-row gap-4">
+        <Card className="mb-6 p-4">
+          <div className="flex flex-col gap-4">
             <div className="flex-1">
               <Input
                 placeholder="Search by vendor, invoice number..."
@@ -138,66 +138,69 @@ export default function InvoicesPage() {
                 }}
               />
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               {(['all', 'draft', 'confirmed', 'paid'] as const).map((status) => (
                 <Button
                   key={status}
                   variant={statusFilter === status ? 'default' : 'outline'}
                   size="sm"
+                  className="flex-1 sm:flex-none"
                   onClick={() => setStatusFilter(status)}
                 >
                   {status.charAt(0).toUpperCase() + status.slice(1)}
                 </Button>
               ))}
             </div>
-            <div className="w-full md:w-64">
-              <select
-                value={categoryFilter}
-                onChange={(e) => {
-                  setCategoryFilter(e.target.value as 'all' | ExpenseCategory)
-                  setPage(1)
-                }}
-                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-              >
-                {CATEGORIES.map((category) => (
-                  <option key={category} value={category}>
-                    {category === 'all' ? 'All Categories' : category}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="w-full md:w-44">
-              <select
-                value={needsReviewFilter}
-                onChange={(e) => {
-                  setNeedsReviewFilter(e.target.value as 'all' | 'yes' | 'no')
-                  setPage(1)
-                }}
-                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-              >
-                <option value="all">All Review States</option>
-                <option value="yes">Needs Review</option>
-                <option value="no">Reviewed</option>
-              </select>
-            </div>
-            <div className="w-full md:w-44">
-              <select
-                value={`${sortBy}:${sortOrder}`}
-                onChange={(e) => {
-                  const [nextSortBy, nextSortOrder] = e.target.value.split(':') as [typeof sortBy, typeof sortOrder]
-                  setSortBy(nextSortBy)
-                  setSortOrder(nextSortOrder)
-                  setPage(1)
-                }}
-                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-              >
-                <option value="uploadedAt:desc">Newest First</option>
-                <option value="uploadedAt:asc">Oldest First</option>
-                <option value="invoiceDate:desc">Invoice Date Desc</option>
-                <option value="invoiceDate:asc">Invoice Date Asc</option>
-                <option value="vendorName:asc">Vendor A-Z</option>
-                <option value="totalAmount:desc">Amount High-Low</option>
-              </select>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+              <div className="w-full">
+                <select
+                  value={categoryFilter}
+                  onChange={(e) => {
+                    setCategoryFilter(e.target.value as 'all' | ExpenseCategory)
+                    setPage(1)
+                  }}
+                  className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                >
+                  {CATEGORIES.map((category) => (
+                    <option key={category} value={category}>
+                      {category === 'all' ? 'All Categories' : category}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="w-full">
+                <select
+                  value={needsReviewFilter}
+                  onChange={(e) => {
+                    setNeedsReviewFilter(e.target.value as 'all' | 'yes' | 'no')
+                    setPage(1)
+                  }}
+                  className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                >
+                  <option value="all">All Review States</option>
+                  <option value="yes">Needs Review</option>
+                  <option value="no">Reviewed</option>
+                </select>
+              </div>
+              <div className="w-full">
+                <select
+                  value={`${sortBy}:${sortOrder}`}
+                  onChange={(e) => {
+                    const [nextSortBy, nextSortOrder] = e.target.value.split(':') as [typeof sortBy, typeof sortOrder]
+                    setSortBy(nextSortBy)
+                    setSortOrder(nextSortOrder)
+                    setPage(1)
+                  }}
+                  className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                >
+                  <option value="uploadedAt:desc">Newest First</option>
+                  <option value="uploadedAt:asc">Oldest First</option>
+                  <option value="invoiceDate:desc">Invoice Date Desc</option>
+                  <option value="invoiceDate:asc">Invoice Date Asc</option>
+                  <option value="vendorName:asc">Vendor A-Z</option>
+                  <option value="totalAmount:desc">Amount High-Low</option>
+                </select>
+              </div>
             </div>
           </div>
         </Card>
@@ -225,68 +228,72 @@ export default function InvoicesPage() {
                 key={invoice.id}
                 className="p-4 hover:bg-secondary transition-colors"
               >
-                <div className="flex items-center justify-between gap-4">
-                  <div className="flex-1">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                  <div className="min-w-0 flex-1">
                     <Link href={`/invoices/${invoice.id}`} className="block">
-                      <h3 className="font-semibold text-foreground hover:text-primary transition-colors">
+                      <h3 className="break-words font-semibold text-foreground transition-colors hover:text-primary">
                         {invoice.vendorName || invoice.fileName}
                       </h3>
                       <p className="text-sm text-muted-foreground">
                         Invoice #{invoice.invoiceNumber || 'N/A'} • {formatDateOnly(invoice.invoiceDate)}
                       </p>
-                      <p className="mt-1 inline-block rounded bg-secondary px-2 py-0.5 text-xs text-muted-foreground">
-                        {(invoice.category || 'Other')}
-                      </p>
-                      {invoice.extractionNeedsReview && (
-                        <p className="mt-1 ml-2 inline-block rounded bg-amber-100 px-2 py-0.5 text-xs text-amber-700">
-                          Needs Review
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        <p className="inline-block rounded bg-secondary px-2 py-0.5 text-xs text-muted-foreground">
+                          {(invoice.category || 'Other')}
                         </p>
-                      )}
-                      {typeof invoice.vendorRiskScore === 'number' && invoice.vendorRiskScore >= 45 && (
-                        <p className="mt-1 ml-2 inline-block rounded bg-orange-100 px-2 py-0.5 text-xs text-orange-700">
-                          Vendor Risk {invoice.vendorRiskScore}
-                        </p>
-                      )}
+                        {invoice.extractionNeedsReview && (
+                          <p className="inline-block rounded bg-amber-100 px-2 py-0.5 text-xs text-amber-700">
+                            Needs Review
+                          </p>
+                        )}
+                        {typeof invoice.vendorRiskScore === 'number' && invoice.vendorRiskScore >= 45 && (
+                          <p className="inline-block rounded bg-orange-100 px-2 py-0.5 text-xs text-orange-700">
+                            Vendor Risk {invoice.vendorRiskScore}
+                          </p>
+                        )}
+                      </div>
                     </Link>
                   </div>
 
-                  <div className="text-right">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between lg:justify-end lg:gap-4">
+                    <div className="text-left sm:text-right lg:min-w-32">
                     <p className="font-semibold text-foreground">
                       ₹{invoice.totalAmount.toFixed(2)}
                     </p>
                     <p className="text-xs text-muted-foreground">
                       GST: ₹{invoice.gstAmount.toFixed(2)}
                     </p>
-                  </div>
+                    </div>
 
-                  <div className="flex items-center gap-2">
-                    <span
-                      className={`px-3 py-1 rounded-full text-xs font-medium ${
-                        invoice.status === 'confirmed'
-                          ? 'bg-success/20 text-success'
-                          : invoice.status === 'paid'
-                          ? 'bg-info/20 text-info'
-                          : 'bg-muted text-muted-foreground'
-                      }`}
-                    >
-                      {invoice.status.charAt(0).toUpperCase() + invoice.status.slice(1)}
-                    </span>
-                  </div>
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`rounded-full px-3 py-1 text-xs font-medium ${
+                          invoice.status === 'confirmed'
+                            ? 'bg-success/20 text-success'
+                            : invoice.status === 'paid'
+                            ? 'bg-info/20 text-info'
+                            : 'bg-muted text-muted-foreground'
+                        }`}
+                      >
+                        {invoice.status.charAt(0).toUpperCase() + invoice.status.slice(1)}
+                      </span>
+                    </div>
 
-                  <div className="flex gap-2">
-                    <Link href={`/invoices/${invoice.id}`}>
-                      <Button variant="outline" size="sm">
-                        View
+                    <div className="flex w-full gap-2 sm:w-auto">
+                      <Link href={`/invoices/${invoice.id}`} className="flex-1 sm:flex-none">
+                        <Button variant="outline" size="sm" className="w-full sm:w-auto">
+                          View
+                        </Button>
+                      </Link>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => void handleDelete(invoice.id)}
+                        className="flex-1 text-destructive hover:bg-destructive/10 sm:flex-none"
+                      >
+                        Delete
                       </Button>
-                    </Link>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => void handleDelete(invoice.id)}
-                      className="text-destructive hover:bg-destructive/10"
-                    >
-                      Delete
-                    </Button>
+                    </div>
                   </div>
                 </div>
               </Card>
@@ -294,9 +301,9 @@ export default function InvoicesPage() {
           </div>
         )}
 
-        <div className="mt-6 flex items-center justify-between">
+        <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-muted-foreground">Page {page} of {totalPages}</p>
-          <div className="flex gap-2">
+          <div className="flex w-full gap-2 sm:w-auto">
             <Button variant="outline" size="sm" onClick={() => setPage((prev) => Math.max(1, prev - 1))} disabled={page <= 1 || loading}>
               Previous
             </Button>

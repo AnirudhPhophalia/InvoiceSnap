@@ -351,8 +351,8 @@ export default function UploadPage() {
         ) : (
           <div className="space-y-6">
             {/* AI Extraction Status */}
-            <Card className="p-6 border-0 bg-gradient-to-r from-emerald-500/10 via-cyan-500/10 to-indigo-500/10 shadow-sm">
-              <div className="flex items-center gap-4">
+            <Card className="border-0 bg-gradient-to-r from-emerald-500/10 via-cyan-500/10 to-indigo-500/10 p-4 shadow-sm md:p-6">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
                 <div className={extracting || batchExtracting ? 'animate-spin' : ''}>
                   {extracting || batchExtracting ? '⏳' : '✓'}
                 </div>
@@ -373,14 +373,14 @@ export default function UploadPage() {
 
             {batchResults.length > 1 ? (
               <Card className="p-6">
-                <div className="flex items-center justify-between gap-4">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <h3 className="text-lg font-semibold">Batch Extraction Results</h3>
                     <p className="text-sm text-muted-foreground">
                       Success: {batchResults.filter((row) => row.extracted).length} / {batchResults.length}
                     </p>
                   </div>
-                  <Button onClick={() => void handleSaveBatch()} disabled={batchExtracting || savingBatch}>
+                  <Button className="w-full sm:w-auto" onClick={() => void handleSaveBatch()} disabled={batchExtracting || savingBatch}>
                     {savingBatch ? 'Saving...' : 'Save All As Draft'}
                   </Button>
                 </div>
@@ -408,7 +408,7 @@ export default function UploadPage() {
                 </div>
               </Card>
             ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
               {[
                 { label: 'Vendor Name', name: 'vendorName', required: true },
                 { label: 'Vendor GSTIN', name: 'vendorGSTIN' },
@@ -460,8 +460,11 @@ export default function UploadPage() {
                 </div>
                 <div className="space-y-3">
                   {formData.items.map((item, index) => (
-                    <div key={`${item.description}-${index}`} className="grid grid-cols-1 md:grid-cols-12 gap-2 rounded-lg border border-border p-3">
-                      <Input className="md:col-span-4" value={item.description} onChange={(e) => handleItemChange(index, 'description', e.target.value)} />
+                    <div key={`${item.description}-${index}`} className="grid grid-cols-1 gap-2 rounded-lg border border-border p-3 md:grid-cols-12">
+                      <div className="md:col-span-4">
+                        <label className="mb-1 block text-xs font-medium text-muted-foreground md:hidden">Item Name</label>
+                        <Input value={item.description} onChange={(e) => handleItemChange(index, 'description', e.target.value)} />
+                      </div>
                       <select
                         className="md:col-span-2 h-10 rounded-md border border-input bg-background px-3 text-sm"
                         value={item.category || 'Other'}
@@ -506,9 +509,10 @@ export default function UploadPage() {
             )}
 
             {/* Actions */}
-            <div className="flex gap-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:gap-4">
               <Button
                 variant="outline"
+                className="w-full sm:w-auto"
                 onClick={() => {
                   setStep('upload')
                   setFileName('')
@@ -535,7 +539,7 @@ export default function UploadPage() {
                 Upload Different File
               </Button>
               {batchResults.length <= 1 && (
-              <Button onClick={() => void handleSubmit()} disabled={extracting || submitting} className="ml-auto">
+              <Button onClick={() => void handleSubmit()} disabled={extracting || submitting} className="w-full sm:ml-auto sm:w-auto">
                 {submitting ? 'Saving...' : 'Save Invoice'}
               </Button>
               )}

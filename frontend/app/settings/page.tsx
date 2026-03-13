@@ -118,10 +118,10 @@ export default function SettingsPage() {
 
   return (
     <ProtectedLayout>
-      <div className="p-8 max-w-4xl mx-auto">
+      <div className="mx-auto max-w-5xl p-4 md:p-8">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-foreground mb-2">Settings</h1>
+          <h1 className="mb-2 text-2xl font-bold text-foreground md:text-3xl">Settings</h1>
           <p className="text-muted-foreground">Manage your account and preferences</p>
         </div>
 
@@ -132,12 +132,12 @@ export default function SettingsPage() {
         )}
 
         {/* Tabs */}
-        <div className="flex gap-2 mb-8 border-b border-border">
+        <div className="mb-8 flex gap-2 overflow-x-auto border-b border-border pb-1">
           {tabs.map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`px-4 py-3 font-medium border-b-2 transition-colors ${
+              className={`whitespace-nowrap px-4 py-3 font-medium border-b-2 transition-colors ${
                 activeTab === tab.id
                   ? 'border-primary text-primary'
                   : 'border-transparent text-muted-foreground hover:text-foreground'
@@ -193,11 +193,11 @@ export default function SettingsPage() {
                   </div>
                 )}
 
-                <div className="flex gap-2">
-                  <Button onClick={() => void handleSaveProfile()} disabled={saving}>
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <Button onClick={() => void handleSaveProfile()} disabled={saving} className="w-full sm:w-auto">
                     {saving ? 'Saving...' : 'Save Changes'}
                   </Button>
-                  <Button variant="outline">Cancel</Button>
+                  <Button variant="outline" className="w-full sm:w-auto">Cancel</Button>
                 </div>
               </div>
             </Card>
@@ -287,7 +287,7 @@ export default function SettingsPage() {
                 Manage your active login sessions across devices
               </p>
               <div className="space-y-3">
-                <div className="p-4 bg-secondary rounded-lg flex items-center justify-between">
+                <div className="flex flex-col gap-3 rounded-lg bg-secondary p-4 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <p className="font-medium">Current Session</p>
                     <p className="text-sm text-muted-foreground">Chrome on Windows</p>
@@ -306,7 +306,7 @@ export default function SettingsPage() {
                   <p className="text-sm text-muted-foreground mb-3">
                     Sign out from all devices and end your session
                   </p>
-                  <Button variant="outline" onClick={() => void handleLogoutEverywhere()} className="text-destructive" disabled={saving}>
+                  <Button variant="outline" onClick={() => void handleLogoutEverywhere()} className="w-full text-destructive sm:w-auto" disabled={saving}>
                     Sign Out Everywhere
                   </Button>
                 </div>
@@ -322,7 +322,7 @@ export default function SettingsPage() {
               <h3 className="text-lg font-semibold mb-4">Billing Plan</h3>
               <div className="space-y-4">
                 <div className="p-4 bg-gradient-to-r from-primary/10 to-accent/10 rounded-lg border border-primary/20">
-                  <div className="flex items-center justify-between mb-3">
+                  <div className="mb-3 flex items-center justify-between gap-3">
                     <div>
                       <p className="font-semibold text-lg">Free Plan</p>
                       <p className="text-sm text-muted-foreground">Current Plan</p>
@@ -373,7 +373,7 @@ export default function SettingsPage() {
 
                 <div>
                   <p className="text-sm text-muted-foreground mb-2">Privacy & Terms</p>
-                  <div className="flex gap-4">
+                  <div className="flex flex-wrap gap-4">
                     <Link href="/privacy-policy" className="text-primary hover:underline text-sm">
                       Privacy Policy
                     </Link>
@@ -394,7 +394,7 @@ export default function SettingsPage() {
                 We'd love to hear your ideas for making InvoiceSnap even better.
               </p>
               <Link href="/feedback">
-                <Button variant="outline">Send Feedback</Button>
+                <Button variant="outline" className="w-full sm:w-auto">Send Feedback</Button>
               </Link>
             </Card>
           </div>

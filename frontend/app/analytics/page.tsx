@@ -26,8 +26,10 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts'
+import { useIsMobile } from '@/hooks/use-mobile'
 
 export default function AnalyticsPage() {
+  const isMobile = useIsMobile()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [monthlyData, setMonthlyData] = useState<Array<{ month: string; amount: number; gst: number; count: number }>>([])
@@ -103,10 +105,10 @@ export default function AnalyticsPage() {
 
   return (
     <ProtectedLayout>
-      <div className="p-8">
+      <div className="mx-auto max-w-7xl p-4 md:p-8">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-foreground mb-2">Analytics</h1>
+          <h1 className="mb-2 text-2xl font-bold text-foreground md:text-3xl">Analytics</h1>
           <p className="text-muted-foreground">Track your invoice trends and GST data</p>
         </div>
 
@@ -121,7 +123,7 @@ export default function AnalyticsPage() {
         )}
 
         {/* Key Metrics */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+        <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {[
             { label: 'Total Amount', value: `₹${stats.totalAmount.toFixed(0)}`, icon: '💰' },
             { label: 'Total GST', value: `₹${stats.totalGST.toFixed(0)}`, icon: '📋' },
@@ -141,15 +143,15 @@ export default function AnalyticsPage() {
         </div>
 
         {/* Charts */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           {/* Monthly Trend */}
-          <Card className="lg:col-span-2 p-6">
+          <Card className="p-4 lg:col-span-2 md:p-6">
             <h3 className="text-lg font-semibold mb-4">Monthly Trend</h3>
             {monthlyData.length > 0 ? (
               <ResponsiveContainer width="100%" height={300}>
                 <LineChart data={monthlyData}>
                   <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="month" />
+                  <XAxis dataKey="month" tick={{ fontSize: isMobile ? 10 : 12 }} />
                   <YAxis />
                   <Tooltip formatter={(value) => `₹${value}`} />
                   <Line
@@ -176,7 +178,7 @@ export default function AnalyticsPage() {
           </Card>
 
           {/* Status Distribution */}
-          <Card className="p-6">
+          <Card className="p-4 md:p-6">
             <h3 className="text-lg font-semibold mb-4">Status Distribution</h3>
             {stats.totalInvoices > 0 ? (
               <div className="flex flex-col">
@@ -188,8 +190,8 @@ export default function AnalyticsPage() {
                       cy="48%"
                       labelLine={false}
                       label={false}
-                      outerRadius={70}
-                      innerRadius={34}
+                      outerRadius={isMobile ? 58 : 70}
+                      innerRadius={isMobile ? 28 : 34}
                       fill="#8884d8"
                       dataKey="value"
                     >
@@ -222,13 +224,13 @@ export default function AnalyticsPage() {
         </div>
 
         {/* Top Vendors */}
-        <Card className="p-6 mt-6">
+        <Card className="mt-6 p-4 md:p-6">
           <h3 className="text-lg font-semibold mb-4">Top Vendors by Amount</h3>
           {topVendors.length > 0 ? (
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={topVendors}>
                 <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="name" />
+                <XAxis dataKey="name" tick={{ fontSize: isMobile ? 10 : 12 }} interval={0} angle={isMobile ? -18 : 0} textAnchor={isMobile ? 'end' : 'middle'} height={isMobile ? 56 : 30} />
                 <YAxis />
                 <Tooltip formatter={(value) => `₹${value}`} />
                 <Bar dataKey="amount" fill="#3b82f6" radius={[8, 8, 0, 0]} />
@@ -241,7 +243,7 @@ export default function AnalyticsPage() {
           )}
         </Card>
 
-        <Card className="p-6 mt-6">
+        <Card className="mt-6 p-4 md:p-6">
           <h3 className="text-lg font-semibold mb-4">Monthly Spend by Category</h3>
           {monthlyCategoryRows.length === 0 ? (
             <div className="text-muted-foreground">No category summary available yet</div>
@@ -249,7 +251,7 @@ export default function AnalyticsPage() {
             <div className="space-y-4">
               {monthlyCategoryRows.map((row) => (
                 <div key={row.month} className="rounded-lg border border-border p-4">
-                  <div className="mb-2 flex items-center justify-between">
+                  <div className="mb-2 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
                     <p className="font-medium">{row.month}</p>
                     <p className="text-sm text-muted-foreground">Total: ₹{row.totalAmount.toFixed(2)}</p>
                   </div>
@@ -267,8 +269,8 @@ export default function AnalyticsPage() {
           )}
         </Card>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
-          <Card className="p-6">
+        <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
+          <Card className="p-4 md:p-6">
             <h3 className="text-lg font-semibold mb-4">Vendor Brain Profiles</h3>
             {vendorProfiles.length === 0 ? (
               <div className="text-muted-foreground">No vendor profiles yet</div>
@@ -285,7 +287,7 @@ export default function AnalyticsPage() {
             )}
           </Card>
 
-          <Card className="p-6">
+          <Card className="p-4 md:p-6">
             <h3 className="text-lg font-semibold mb-4">Vendor Brain Anomalies</h3>
             {highRiskInvoices.length === 0 ? (
               <div className="text-muted-foreground">No high-risk anomalies detected</div>
@@ -293,7 +295,7 @@ export default function AnalyticsPage() {
               <div className="space-y-3">
                 {highRiskInvoices.map((row) => (
                   <Link key={row.id} href={`/invoices/${row.id}`} className="block rounded-lg border border-border p-3 hover:bg-secondary transition-colors">
-                    <div className="flex items-start justify-between gap-2">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                       <div>
                         <p className="font-medium">{row.vendorName || 'Unknown Vendor'}</p>
                         <p className="text-sm text-muted-foreground">#{row.invoiceNumber || 'N/A'} • ₹{row.totalAmount.toFixed(2)}</p>

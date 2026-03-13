@@ -127,9 +127,9 @@ export default function GSTReportsPage() {
                 ))}
               </select>
             </div>
-            <div className="flex gap-2">
-              <Button onClick={() => void handleExport('pdf')}>Download PDF</Button>
-              <Button variant="outline" onClick={() => void handleExport('excel')}>Export CSV</Button>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Button className="w-full sm:w-auto" onClick={() => void handleExport('pdf')}>Download PDF</Button>
+              <Button variant="outline" className="w-full sm:w-auto" onClick={() => void handleExport('excel')}>Export CSV</Button>
             </div>
           </div>
         </Card>
@@ -223,14 +223,14 @@ export default function GSTReportsPage() {
             <div className="space-y-3 max-h-96 overflow-y-auto">
               {monthlyInvoices.map((inv) => (
                 <div key={inv.id} className="p-4 border border-border/70 rounded-xl hover:bg-secondary/60 transition-colors">
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                       <p className="font-medium">{inv.vendorName || inv.fileName}</p>
                       <p className="text-sm text-muted-foreground">
                         Invoice #{inv.invoiceNumber} • {formatDateOnly(inv.invoiceDate)}
                       </p>
                     </div>
-                    <div className="text-right">
+                    <div className="text-left sm:text-right">
                       <p className="font-semibold">₹{inv.totalAmount.toFixed(2)}</p>
                       <p className="text-sm text-muted-foreground">
                         GST: ₹{inv.gstAmount.toFixed(2)}
@@ -244,10 +244,10 @@ export default function GSTReportsPage() {
         </Card>
 
         {/* Export Section */}
-        <div className="mt-8 flex flex-wrap gap-3">
-          <Button onClick={() => void handleExport('pdf')}>Download GST Report (PDF)</Button>
-          <Button variant="outline" onClick={() => void handleExport('excel')}>Export to Excel</Button>
-          <Button variant="outline" onClick={handlePrint}>Print Report</Button>
+        <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+          <Button className="w-full sm:w-auto" onClick={() => void handleExport('pdf')}>Download GST Report (PDF)</Button>
+          <Button variant="outline" className="w-full sm:w-auto" onClick={() => void handleExport('excel')}>Export to Excel</Button>
+          <Button variant="outline" className="w-full sm:w-auto" onClick={handlePrint}>Print Report</Button>
         </div>
       </div>
     </ProtectedLayout>

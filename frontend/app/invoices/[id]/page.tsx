@@ -196,15 +196,15 @@ export default function InvoiceDetailPage() {
 
   return (
     <ProtectedLayout>
-      <div className="p-8 max-w-4xl mx-auto">
+      <div className="mx-auto max-w-6xl p-4 md:p-8">
         {/* Header */}
-        <div className="flex items-center justify-between mb-8">
+        <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-foreground mb-2">Invoice Details</h1>
-            <p className="text-muted-foreground">{invoice.fileName}</p>
+            <h1 className="mb-2 text-2xl font-bold text-foreground md:text-3xl">Invoice Details</h1>
+            <p className="break-all text-muted-foreground sm:break-normal">{invoice.fileName}</p>
           </div>
           <Link href="/invoices">
-            <Button variant="outline">Back to Invoices</Button>
+            <Button variant="outline" className="w-full sm:w-auto">Back to Invoices</Button>
           </Link>
         </div>
 
@@ -217,12 +217,12 @@ export default function InvoiceDetailPage() {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Invoice Card */}
-          <Card className="lg:col-span-2 p-8">
+          <Card className="p-4 lg:col-span-2 md:p-6 xl:p-8">
             {/* Invoice Header */}
             <div className="mb-8 pb-8 border-b border-border">
-              <div className="flex items-start justify-between mb-6">
+              <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div>
-                  <h2 className="text-2xl font-bold">{invoice.vendorName}</h2>
+                  <h2 className="text-xl font-bold md:text-2xl">{invoice.vendorName}</h2>
                   {invoice.vendorGSTIN && (
                     <p className="text-sm text-muted-foreground">GSTIN: {invoice.vendorGSTIN}</p>
                   )}
@@ -243,14 +243,14 @@ export default function InvoiceDetailPage() {
                     )}
                   </div>
                 </div>
-                <div className="text-right">
-                  <p className="text-3xl font-bold text-primary">
+                <div className="text-left sm:text-right">
+                  <p className="text-2xl font-bold text-primary md:text-3xl">
                     ₹{invoice.totalAmount.toFixed(2)}
                   </p>
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6">
                 <div>
                   <p className="text-xs text-muted-foreground uppercase">Invoice Number</p>
                   <p className="font-semibold">{invoice.invoiceNumber}</p>
@@ -284,37 +284,45 @@ export default function InvoiceDetailPage() {
                   <input type="number" className="h-10 rounded-md border border-input bg-background px-3" value={draft.totalAmount} onChange={(e) => handleDraftChange('totalAmount', e.target.value)} />
                   <input type="number" className="h-10 rounded-md border border-input bg-background px-3" value={draft.gstAmount} onChange={(e) => handleDraftChange('gstAmount', e.target.value)} />
                 </div>
-                <div className="mt-4 overflow-x-auto">
-                  <div className="min-w-[750px] space-y-2">
-                    <div className="grid grid-cols-12 gap-2 px-1 text-xs font-medium text-muted-foreground">
-                      <span className="col-span-4">Item Name</span>
-                      <span className="col-span-2">Category</span>
-                      <span className="col-span-1">Qty</span>
-                      <span className="col-span-2">Unit Price (₹)</span>
-                      <span className="col-span-1">GST%</span>
-                      <span className="col-span-2">Total Incl GST (₹)</span>
-                    </div>
-                    {draft.items.map((item, index) => (
-                      <div key={`${item.description}-${index}`} className="grid grid-cols-12 gap-2 items-center">
-                        <input className="col-span-4 h-10 rounded-md border border-input bg-background px-3 text-sm min-w-0" value={item.description} onChange={(e) => handleItemChange(index, 'description', e.target.value)} />
-                        <select className="col-span-2 h-10 rounded-md border border-input bg-background px-2 text-sm min-w-0" value={item.category || 'Other'} onChange={(e) => handleItemChange(index, 'category', e.target.value)}>
+                <div className="space-y-3">
+                  {draft.items.map((item, index) => (
+                    <div key={`${item.description}-${index}`} className="grid grid-cols-1 gap-2 rounded-lg border border-border bg-background/70 p-3 md:grid-cols-12 md:items-center">
+                      <div className="md:col-span-4">
+                        <label className="mb-1 block text-xs font-medium text-muted-foreground md:hidden">Item Name</label>
+                        <input className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm min-w-0" value={item.description} onChange={(e) => handleItemChange(index, 'description', e.target.value)} />
+                      </div>
+                      <div className="md:col-span-2">
+                        <label className="mb-1 block text-xs font-medium text-muted-foreground md:hidden">Category</label>
+                        <select className="h-10 w-full rounded-md border border-input bg-background px-2 text-sm min-w-0" value={item.category || 'Other'} onChange={(e) => handleItemChange(index, 'category', e.target.value)}>
                           {CATEGORIES.map((option) => (
                             <option key={option} value={option}>{option}</option>
                           ))}
                         </select>
-                        <input type="number" className="col-span-1 h-10 rounded-md border border-input bg-background px-2 text-sm min-w-0" value={item.quantity} onChange={(e) => handleItemChange(index, 'quantity', e.target.value)} />
-                        <div className="col-span-2 flex items-center gap-1 min-w-0">
-                          <span className="text-sm text-muted-foreground shrink-0">₹</span>
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-xs font-medium text-muted-foreground md:hidden">Qty</label>
+                        <input type="number" className="h-10 w-full rounded-md border border-input bg-background px-2 text-sm min-w-0" value={item.quantity} onChange={(e) => handleItemChange(index, 'quantity', e.target.value)} />
+                      </div>
+                      <div className="md:col-span-2">
+                        <label className="mb-1 block text-xs font-medium text-muted-foreground md:hidden">Unit Price (₹)</label>
+                        <div className="flex items-center gap-1 min-w-0">
+                          <span className="shrink-0 text-sm text-muted-foreground">₹</span>
                           <input type="number" className="h-10 w-full rounded-md border border-input bg-background px-2 text-sm min-w-0" value={item.unitPrice} onChange={(e) => handleItemChange(index, 'unitPrice', e.target.value)} />
                         </div>
-                        <input type="number" className="col-span-1 h-10 rounded-md border border-input bg-background px-2 text-sm min-w-0" value={item.gstRate} onChange={(e) => handleItemChange(index, 'gstRate', e.target.value)} />
-                        <div className="col-span-2 flex items-center gap-1 min-w-0">
-                          <span className="text-sm text-muted-foreground shrink-0">₹</span>
-                          <input type="number" readOnly className="h-10 w-full rounded-md border border-input bg-background px-2 text-sm min-w-0 bg-muted/40" value={Number((item.total + (item.total * item.gstRate) / 100).toFixed(2))} />
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-xs font-medium text-muted-foreground md:hidden">GST%</label>
+                        <input type="number" className="h-10 w-full rounded-md border border-input bg-background px-2 text-sm min-w-0" value={item.gstRate} onChange={(e) => handleItemChange(index, 'gstRate', e.target.value)} />
+                      </div>
+                      <div className="md:col-span-2">
+                        <label className="mb-1 block text-xs font-medium text-muted-foreground md:hidden">Total Incl GST (₹)</label>
+                        <div className="flex items-center gap-1 min-w-0">
+                          <span className="shrink-0 text-sm text-muted-foreground">₹</span>
+                          <input type="number" readOnly className="h-10 w-full rounded-md border border-input bg-muted/40 px-2 text-sm min-w-0" value={Number((item.total + (item.total * item.gstRate) / 100).toFixed(2))} />
                         </div>
                       </div>
-                    ))}
-                  </div>
+                    </div>
+                  ))}
                 </div>
                 <textarea
                   className="mt-4 w-full rounded-md border border-input bg-background px-3 py-2"
@@ -322,9 +330,9 @@ export default function InvoiceDetailPage() {
                   value={draft.notes}
                   onChange={(e) => handleDraftChange('notes', e.target.value)}
                 />
-                <div className="mt-4 flex gap-2">
-                  <Button onClick={() => void handleSaveChanges()} disabled={saving}>{saving ? 'Saving...' : 'Save Changes'}</Button>
-                  <Button variant="outline" onClick={() => setEditing(false)} disabled={saving}>Cancel</Button>
+                <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+                  <Button onClick={() => void handleSaveChanges()} disabled={saving} className="w-full sm:w-auto">{saving ? 'Saving...' : 'Save Changes'}</Button>
+                  <Button variant="outline" onClick={() => setEditing(false)} disabled={saving} className="w-full sm:w-auto">Cancel</Button>
                 </div>
               </div>
             )}
@@ -335,11 +343,11 @@ export default function InvoiceDetailPage() {
               <div className="space-y-3">
                 {invoice.items.map((item, idx) => (
                   <div key={idx} className="p-4 bg-secondary rounded-lg">
-                    <div className="flex justify-between mb-2">
+                    <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                       <p className="font-medium">{item.description}</p>
-                      <p className="font-semibold">₹{item.total.toFixed(2)}</p>
+                      <p className="font-semibold sm:text-right">₹{item.total.toFixed(2)}</p>
                     </div>
-                    <div className="text-sm text-muted-foreground flex justify-between">
+                    <div className="flex flex-col gap-1 text-sm text-muted-foreground sm:flex-row sm:justify-between">
                       <span>{item.quantity} × ₹{item.unitPrice.toFixed(2)}</span>
                       <span>{item.category || 'Other'} • GST: {item.gstRate}%</span>
                     </div>

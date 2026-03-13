@@ -34,7 +34,7 @@ export function ProtectedLayout({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="flex h-screen bg-background">
+    <div className="flex h-screen overflow-hidden bg-background">
       {isMobile ? (
         <>
           <Drawer open={mobileNavOpen} onOpenChange={setMobileNavOpen} direction="left">
@@ -42,7 +42,7 @@ export function ProtectedLayout({ children }: { children: React.ReactNode }) {
               <Sidebar mobile onNavigate={() => setMobileNavOpen(false)} />
             </DrawerContent>
           </Drawer>
-          <main className="flex-1 overflow-auto">
+          <main className="min-w-0 flex-1 overflow-auto">
             <div className="sticky top-0 z-20 flex items-center gap-3 border-b bg-background/95 px-3 py-2 backdrop-blur md:hidden">
               <Button
                 variant="outline"
@@ -60,7 +60,7 @@ export function ProtectedLayout({ children }: { children: React.ReactNode }) {
       ) : (
         <>
           <Sidebar />
-          <main className="flex-1 overflow-auto">
+          <main className="min-w-0 flex-1 overflow-auto">
             {children}
           </main>
         </>
