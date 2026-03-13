@@ -253,9 +253,25 @@ invoiceRouter.get("/:id/source", async (req, res) => {
     return;
   }
 
+  // MongoDB stores Buffer as a BSON Binary object on retrieval; unwrap correctly.
+  let fileBuffer: Buffer;
+  if (Buffer.isBuffer(source.content)) {
+    fileBuffer = source.content;
+  } else {
+    // BSON Binary has a .buffer property that is a Node.js Buffer
+    const binary = source.content as unknown as { buffer?: Buffer; value?: () => string };
+    if (binary.buffer && Buffer.isBuffer(binary.buffer)) {
+      fileBuffer = binary.buffer;
+    } else if (typeof binary.value === "function") {
+      fileBuffer = Buffer.from(binary.value(), "binary");
+    } else {
+      fileBuffer = Buffer.from(source.content as unknown as string);
+    }
+  }
+
   res.setHeader("Content-Type", source.mimeType);
-  res.setHeader("Content-Disposition", `inline; filename=${source.fileName}`);
-  res.send(Buffer.isBuffer(source.content) ? source.content : Buffer.from(source.content));
+  res.setHeader("Content-Disposition", `inline; filename="${source.fileName}"`);
+  res.send(fileBuffer);
 });
 
 invoiceRouter.patch("/:id", async (req, res) => {

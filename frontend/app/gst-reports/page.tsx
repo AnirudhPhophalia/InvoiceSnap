@@ -9,9 +9,10 @@ import type { Invoice } from '@/lib/types'
 import { formatDateOnly } from '@/lib/utils'
 
 export default function GSTReportsPage() {
-  const [selectedMonth, setSelectedMonth] = useState(
-    new Date().toISOString().slice(0, 7)
-  )
+  const [selectedMonth, setSelectedMonth] = useState(() => {
+    const now = new Date()
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+  })
   const [monthlyInvoices, setMonthlyInvoices] = useState<Invoice[]>([])
   const [gstBreakdown, setGstBreakdown] = useState<Array<{ rate: number; amount: number; invoiceCount: number }>>([])
   const [totalGST, setTotalGST] = useState(0)
@@ -26,7 +27,7 @@ export default function GSTReportsPage() {
 
     for (let i = 0; i < 12; i++) {
       const date = new Date(today.getFullYear(), today.getMonth() - i, 1)
-      months.push(date.toISOString().slice(0, 7))
+      months.push(`${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`)
     }
 
     return months

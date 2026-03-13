@@ -7,7 +7,7 @@ import { useParams } from 'next/navigation'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
-import { downloadFile, getSourceDocumentUrl } from '@/lib/api'
+import { downloadFile } from '@/lib/api'
 import { formatDateOnly } from '@/lib/utils'
 import type { ExpenseCategory, Invoice } from '@/lib/types'
 
@@ -32,6 +32,8 @@ export default function InvoiceDetailPage() {
   const [editing, setEditing] = useState(false)
   const [saving, setSaving] = useState(false)
   const [showSourcePreview, setShowSourcePreview] = useState(false)
+  const [sourcePreviewUrl, setSourcePreviewUrl] = useState<string | null>(null)
+  const [sourcePreviewMimeType, setSourcePreviewMimeType] = useState('')
   const [draft, setDraft] = useState<Invoice | null>(null)
 
   useEffect(() => {
@@ -138,6 +140,30 @@ export default function InvoiceDetailPage() {
     }
   }
 
+  const handleTogglePreview = async () => {
+    if (showSourcePreview) {
+      if (sourcePreviewUrl) {
+        URL.revokeObjectURL(sourcePreviewUrl)
+        setSourcePreviewUrl(null)
+        setSourcePreviewMimeType('')
+      }
+      setShowSourcePreview(false)
+      return
+    }
+    setError('')
+    try {
+      const response = await downloadFile(`/invoices/${invoice.id}/source`)
+      if (!response.ok) throw new Error('Failed to load preview')
+      const blob = await response.blob()
+      const url = URL.createObjectURL(blob)
+      setSourcePreviewUrl(url)
+      setSourcePreviewMimeType(blob.type)
+      setShowSourcePreview(true)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load preview')
+    }
+  }
+
   const handleDownload = async (path: string, fallbackName: string) => {
     setError('')
     try {
@@ -219,7 +245,7 @@ export default function InvoiceDetailPage() {
                 </div>
                 <div className="text-right">
                   <p className="text-3xl font-bold text-primary">
-                    {invoice.currencySymbol || '₹'}{invoice.totalAmount.toFixed(2)}
+                    ₹{invoice.totalAmount.toFixed(2)}
                   </p>
                 </div>
               </div>
@@ -264,9 +290,9 @@ export default function InvoiceDetailPage() {
                       <span className="col-span-4">Item Name</span>
                       <span className="col-span-2">Category</span>
                       <span className="col-span-1">Qty</span>
-                      <span className="col-span-2">Unit Price ({invoice.currencySymbol || '₹'})</span>
+                      <span className="col-span-2">Unit Price (₹)</span>
                       <span className="col-span-1">GST%</span>
-                      <span className="col-span-2">Total Incl GST ({invoice.currencySymbol || '₹'})</span>
+                      <span className="col-span-2">Total Incl GST (₹)</span>
                     </div>
                     {draft.items.map((item, index) => (
                       <div key={`${item.description}-${index}`} className="grid grid-cols-12 gap-2 items-center">
@@ -278,12 +304,12 @@ export default function InvoiceDetailPage() {
                         </select>
                         <input type="number" className="col-span-1 h-10 rounded-md border border-input bg-background px-2 text-sm min-w-0" value={item.quantity} onChange={(e) => handleItemChange(index, 'quantity', e.target.value)} />
                         <div className="col-span-2 flex items-center gap-1 min-w-0">
-                          <span className="text-sm text-muted-foreground shrink-0">{invoice.currencySymbol || '₹'}</span>
+                          <span className="text-sm text-muted-foreground shrink-0">₹</span>
                           <input type="number" className="h-10 w-full rounded-md border border-input bg-background px-2 text-sm min-w-0" value={item.unitPrice} onChange={(e) => handleItemChange(index, 'unitPrice', e.target.value)} />
                         </div>
                         <input type="number" className="col-span-1 h-10 rounded-md border border-input bg-background px-2 text-sm min-w-0" value={item.gstRate} onChange={(e) => handleItemChange(index, 'gstRate', e.target.value)} />
                         <div className="col-span-2 flex items-center gap-1 min-w-0">
-                          <span className="text-sm text-muted-foreground shrink-0">{invoice.currencySymbol || '₹'}</span>
+                          <span className="text-sm text-muted-foreground shrink-0">₹</span>
                           <input type="number" readOnly className="h-10 w-full rounded-md border border-input bg-background px-2 text-sm min-w-0 bg-muted/40" value={Number((item.total + (item.total * item.gstRate) / 100).toFixed(2))} />
                         </div>
                       </div>
@@ -311,10 +337,10 @@ export default function InvoiceDetailPage() {
                   <div key={idx} className="p-4 bg-secondary rounded-lg">
                     <div className="flex justify-between mb-2">
                       <p className="font-medium">{item.description}</p>
-                      <p className="font-semibold">{invoice.currencySymbol || '₹'}{item.total.toFixed(2)}</p>
+                      <p className="font-semibold">₹{item.total.toFixed(2)}</p>
                     </div>
                     <div className="text-sm text-muted-foreground flex justify-between">
-                      <span>{item.quantity} × {invoice.currencySymbol || '₹'}{item.unitPrice.toFixed(2)}</span>
+                      <span>{item.quantity} × ₹{item.unitPrice.toFixed(2)}</span>
                       <span>{item.category || 'Other'} • GST: {item.gstRate}%</span>
                     </div>
                   </div>
@@ -326,15 +352,15 @@ export default function InvoiceDetailPage() {
             <div className="space-y-2 mb-8 p-4 bg-secondary rounded-lg">
               <div className="flex justify-between text-sm">
                 <span>Subtotal</span>
-                <span>{invoice.currencySymbol || '₹'}{subtotal.toFixed(2)}</span>
+                <span>₹{subtotal.toFixed(2)}</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span>GST ({effectiveGstRate.toFixed(2)}%)</span>
-                <span>{invoice.currencySymbol || '₹'}{invoice.gstAmount.toFixed(2)}</span>
+                <span>₹{invoice.gstAmount.toFixed(2)}</span>
               </div>
               <div className="flex justify-between font-bold text-lg pt-2 border-t border-border">
                 <span>Total</span>
-                <span>{invoice.currencySymbol || '₹'}{invoice.totalAmount.toFixed(2)}</span>
+                <span>₹{invoice.totalAmount.toFixed(2)}</span>
               </div>
             </div>
 
@@ -423,7 +449,7 @@ export default function InvoiceDetailPage() {
               <Card className="p-6">
                 <h3 className="font-semibold mb-4">Source Document</h3>
                 <div className="space-y-2">
-                  <Button variant="outline" className="w-full" onClick={() => setShowSourcePreview((prev) => !prev)}>
+                  <Button variant="outline" className="w-full" onClick={() => void handleTogglePreview()}>
                     {showSourcePreview ? 'Hide Preview' : 'Preview Original'}
                   </Button>
                   <Button
@@ -434,12 +460,14 @@ export default function InvoiceDetailPage() {
                     Download Original
                   </Button>
                 </div>
-                {showSourcePreview && (
-                  <iframe
-                    title="Source invoice preview"
-                    src={getSourceDocumentUrl(invoice.id)}
-                    className="mt-4 h-96 w-full rounded-md border border-border"
-                  />
+                {showSourcePreview && sourcePreviewUrl && (
+                  sourcePreviewMimeType.startsWith('image/')
+                    ? <img src={sourcePreviewUrl} alt="Source invoice" className="mt-4 w-full rounded-md border border-border" />
+                    : <iframe
+                        title="Source invoice preview"
+                        src={sourcePreviewUrl}
+                        className="mt-4 h-96 w-full rounded-md border border-border"
+                      />
                 )}
               </Card>
             )}

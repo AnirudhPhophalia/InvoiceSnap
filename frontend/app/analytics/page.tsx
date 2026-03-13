@@ -179,7 +179,7 @@ export default function AnalyticsPage() {
           <Card className="p-6">
             <h3 className="text-lg font-semibold mb-4">Status Distribution</h3>
             {stats.totalInvoices > 0 ? (
-              <div className="h-[300px] flex flex-col">
+              <div className="flex flex-col">
                 <ResponsiveContainer width="100%" height={210}>
                   <PieChart>
                     <Pie
