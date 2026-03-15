@@ -23,6 +23,17 @@ const CATEGORIES: ExpenseCategory[] = [
   'Other',
 ]
 
+const DEFAULT_CURRENCY_SYMBOL = '₹'
+
+type InvoiceFormFieldName =
+  | 'vendorName'
+  | 'vendorGSTIN'
+  | 'invoiceNumber'
+  | 'invoiceDate'
+  | 'dueDate'
+  | 'totalAmount'
+  | 'gstAmount'
+
 export default function UploadPage() {
   const [dragActive, setDragActive] = useState(false)
   const [fileName, setFileName] = useState('')
@@ -46,7 +57,7 @@ export default function UploadPage() {
     dueDate: '',
     totalAmount: 0,
     gstAmount: 0,
-    currencySymbol: '₹',
+    currencySymbol: DEFAULT_CURRENCY_SYMBOL,
     category: 'Other' as ExpenseCategory,
     sourceDocumentId: '',
     extractionSource: '',
@@ -110,7 +121,7 @@ export default function UploadPage() {
         dueDate: extracted.dueDate,
         totalAmount: extracted.totalAmount,
         gstAmount: extracted.gstAmount,
-        currencySymbol: extracted.currencySymbol || '₹',
+        currencySymbol: DEFAULT_CURRENCY_SYMBOL,
         category: extracted.category,
         sourceDocumentId: extracted.sourceDocumentId || '',
         extractionSource: extracted.extractionSource || '',
@@ -131,7 +142,13 @@ export default function UploadPage() {
     setStep('extract')
     try {
       const { results } = await extractInvoicesBatch(files)
-      setBatchResults(results)
+      setBatchResults(
+        results.map((row) => (
+          row.extracted
+            ? { ...row, extracted: { ...row.extracted, currencySymbol: DEFAULT_CURRENCY_SYMBOL } }
+            : row
+        )),
+      )
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to extract invoices')
     } finally {
@@ -263,6 +280,7 @@ export default function UploadPage() {
 
         await addInvoice({
           ...extracted,
+          currencySymbol: DEFAULT_CURRENCY_SYMBOL,
           category: extracted.category || 'Other',
           items: extracted.items.length > 0 ? extracted.items : [
             {
@@ -398,7 +416,7 @@ export default function UploadPage() {
                       </div>
                       {row.extracted ? (
                         <p className="mt-1 text-sm text-muted-foreground">
-                          {row.extracted.vendorName || 'Unknown Vendor'} • {row.extracted.invoiceNumber || 'No invoice number'} • {row.extracted.currencySymbol || '₹'}{row.extracted.totalAmount.toFixed(2)}
+                          {row.extracted.vendorName || 'Unknown Vendor'} • {row.extracted.invoiceNumber || 'No invoice number'} • {DEFAULT_CURRENCY_SYMBOL}{row.extracted.totalAmount.toFixed(2)}
                         </p>
                       ) : (
                         <p className="mt-1 text-sm text-destructive">{row.error || 'Extraction failed'}</p>
@@ -410,13 +428,13 @@ export default function UploadPage() {
             ) : (
             <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
               {[
-                { label: 'Vendor Name', name: 'vendorName', required: true },
-                { label: 'Vendor GSTIN', name: 'vendorGSTIN' },
-                { label: 'Invoice Number', name: 'invoiceNumber', required: true },
-                { label: 'Invoice Date', name: 'invoiceDate', type: 'date', required: true },
-                { label: 'Due Date', name: 'dueDate', type: 'date' },
-                { label: `Total Amount (${formData.currencySymbol})`, name: 'totalAmount', type: 'number', required: true },
-                { label: `GST Amount (${formData.currencySymbol})`, name: 'gstAmount', type: 'number' },
+                { label: 'Vendor Name', name: 'vendorName' as InvoiceFormFieldName, required: true },
+                { label: 'Vendor GSTIN', name: 'vendorGSTIN' as InvoiceFormFieldName },
+                { label: 'Invoice Number', name: 'invoiceNumber' as InvoiceFormFieldName, required: true },
+                { label: 'Invoice Date', name: 'invoiceDate' as InvoiceFormFieldName, type: 'date', required: true },
+                { label: 'Due Date', name: 'dueDate' as InvoiceFormFieldName, type: 'date' },
+                { label: `Total Amount (${formData.currencySymbol})`, name: 'totalAmount' as InvoiceFormFieldName, type: 'number', required: true },
+                { label: `GST Amount (${formData.currencySymbol})`, name: 'gstAmount' as InvoiceFormFieldName, type: 'number' },
               ].map((field) => (
                 <div key={field.name}>
                   <label className="block text-sm font-medium mb-2">
@@ -427,8 +445,8 @@ export default function UploadPage() {
                     name={field.name}
                     value={
                       field.type === 'number'
-                        ? formData[field.name as keyof typeof formData] || ''
-                        : formData[field.name as keyof typeof formData]
+                        ? formData[field.name] || ''
+                        : formData[field.name]
                     }
                     onChange={handleFormChange}
                     disabled={extracting}
@@ -524,7 +542,7 @@ export default function UploadPage() {
                     dueDate: '',
                     totalAmount: 0,
                     gstAmount: 0,
-                    currencySymbol: '₹',
+                    currencySymbol: DEFAULT_CURRENCY_SYMBOL,
                     category: 'Other' as ExpenseCategory,
                     sourceDocumentId: '',
                     extractionSource: '',

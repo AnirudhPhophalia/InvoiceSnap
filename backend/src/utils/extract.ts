@@ -739,9 +739,7 @@ function buildAiExtraction(fileName: string, aiInvoice: AiInvoice, rawTextFallba
   const dueDate = normalizeDateValue(aiInvoice.dueDate) || fallback?.dueDate || "";
   const vendorName = aiInvoice.vendorName?.trim() || fallback?.vendorName || "";
   const invoiceNumber = aiInvoice.invoiceNumber?.trim() || fallback?.invoiceNumber || "";
-  const currencySymbol = typeof aiInvoice.currencySymbol === "string" && aiInvoice.currencySymbol.trim()
-    ? aiInvoice.currencySymbol.trim()
-    : detectCurrencySymbol(rawTextFallback);
+  const currencySymbol = detectCurrencySymbol(rawTextFallback);
 
   const confidence = normalizeConfidence(0.88);
   const items = normalizeAiItems(aiInvoice.items, totalAmount, gstAmount);
